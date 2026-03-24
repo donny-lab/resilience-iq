@@ -173,6 +173,103 @@ function useCountySearch() {
   return { results, search, searching };
 }
 
+function useWarnFilings(fips) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!fips) return;
+    setLoading(true);
+    supabase
+      .from("warn_filings")
+      .select("company_name,employees_affected,layoff_type,notice_date,effective_date,naics_code")
+      .eq("fips_code", fips)
+      .order("notice_date", { ascending: false })
+      .limit(50)
+      .then(({ data: rows, error }) => {
+        if (error) console.error(error);
+        else setData(rows || []);
+      })
+      .finally(() => setLoading(false));
+  }, [fips]);
+  return { warnFilings: data, loading };
+}
+
+function useBusinessActivity(fips) {
+  const [data, setData] = useState({ registrations: [], summary: null });
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!fips) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const { data: regs } = await supabase
+          .from("business_registrations")
+          .select("entity_name,entity_type,status,registration_date,dissolution_date")
+          .eq("fips_code", fips)
+          .order("registration_date", { ascending: false })
+          .limit(500);
+        const rows = regs || [];
+        // Monthly summary
+        const monthly = {};
+        rows.forEach(r => {
+          const date = r.status === "dissolved" ? r.dissolution_date : r.registration_date;
+          if (!date) return;
+          const key = date.slice(0, 7);
+          if (!monthly[key]) monthly[key] = { new: 0, dissolved: 0 };
+          if (r.status === "active") monthly[key].new++;
+          else monthly[key].dissolved++;
+        });
+        const sortedMonths = Object.keys(monthly).sort().slice(-12);
+        const summary = sortedMonths.map(m => ({
+          month: m,
+          new: monthly[m].new,
+          dissolved: monthly[m].dissolved,
+          net: monthly[m].new - monthly[m].dissolved,
+        }));
+        setData({ registrations: rows.slice(0, 20), summary });
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    })();
+  }, [fips]);
+  return { bizData: data, loading };
+}
+
+function useStateComparison(stateAbbr) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!stateAbbr) return;
+    setLoading(true);
+    (async () => {
+      try {
+        const { data: counties } = await supabase
+          .from("jurisdictions")
+          .select("fips_code,county_name")
+          .eq("state_abbr", stateAbbr)
+          .order("county_name");
+        const fipsList = (counties || []).map(c => c.fips_code);
+        if (fipsList.length === 0) { setData([]); return; }
+        const { data: scores } = await supabase
+          .from("resilience_scores")
+          .select("fips_code,overall_score,trend,trend_delta")
+          .in("fips_code", fipsList)
+          .order("overall_score", { ascending: false });
+        const nameMap = {};
+        (counties || []).forEach(c => { nameMap[c.fips_code] = c.county_name; });
+        setData((scores || []).map(s => ({
+          fips: s.fips_code,
+          name: nameMap[s.fips_code] || s.fips_code,
+          score: parseFloat(s.overall_score),
+          trend: s.trend,
+          trendDelta: s.trend_delta,
+        })));
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    })();
+  }, [stateAbbr]);
+  return { stateData: data, loading };
+}
+
 // ============================================================
 // DESIGN SYSTEM
 // ============================================================
@@ -578,10 +675,15 @@ export default function ResilienceIQ() {
   const lfFirst = lausData.length > 0 ? lausData[0].labor_force : null;
   const lfChange = lfNow && lfFirst ? lfNow - lfFirst : 0;
 
+  const { warnFilings } = useWarnFilings(fips);
+  const { bizData } = useBusinessActivity(fips);
+  const { stateData } = useStateComparison(jurisdiction?.state_abbr);
+
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "labor", label: "Labor market" },
-    { id: "alerts", label: "Alerts" },
+    { id: "alerts", label: "Alerts" + (warnFilings.length > 0 ? ` (${warnFilings.length})` : "") },
+    { id: "compare", label: "Compare" },
   ];
 
   const scoreComponents = resilienceScore
@@ -1777,36 +1879,131 @@ export default function ResilienceIQ() {
             )}
 
             {activeTab === "alerts" && (
-              <div
-                style={{
-                  background: colors.card,
-                  borderRadius: 12,
-                  border: `1px solid ${colors.cardBorder}`,
-                  padding: "24px 28px",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 600,
-                    fontFamily: "'Source Serif 4', Georgia, serif",
-                    marginBottom: 16,
-                  }}
-                >
-                  Alerts
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {/* WARN Filings */}
+                <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "24px 28px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>WARN Act filings</div>
+                      <div style={{ fontSize: 15, fontWeight: 500 }}>
+                        {warnFilings.length > 0 ? `${warnFilings.length} layoff notices filed in ${jurisdiction?.county_name || "this county"}` : `No WARN filings on record for ${jurisdiction?.county_name || "this county"}`}
+                      </div>
+                    </div>
+                    {warnFilings.length > 0 && (
+                      <div style={{ padding: "6px 14px", borderRadius: 8, background: colors.cautionBg, fontSize: 13, fontWeight: 500, color: colors.caution }}>
+                        {warnFilings.reduce((s, f) => s + (f.employees_affected || 0), 0).toLocaleString()} employees affected
+                      </div>
+                    )}
+                  </div>
+                  {warnFilings.length > 0 ? (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ borderBottom: `2px solid ${colors.cardBorder}` }}>
+                            {["Company", "Employees", "Type", "Notice date", "Effective"].map(h => (
+                              <th key={h} style={{ padding: "8px 12px", textAlign: "left", fontWeight: 500, color: colors.textSecondary, fontSize: 12, textTransform: "uppercase" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {warnFilings.slice(0, 20).map((f, i) => (
+                            <tr key={i} style={{ borderBottom: `1px solid ${colors.warmGray}` }}>
+                              <td style={{ padding: "10px 12px", fontWeight: 500 }}>{f.company_name}</td>
+                              <td style={{ padding: "10px 12px", fontFamily: "'Source Serif 4', Georgia, serif", fontVariantNumeric: "tabular-nums" }}>{f.employees_affected?.toLocaleString()}</td>
+                              <td style={{ padding: "10px 12px" }}>
+                                <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 12, background: f.layoff_type === "Plant Closing" ? colors.cautionBg : colors.neutralBg, color: f.layoff_type === "Plant Closing" ? colors.caution : colors.neutral }}>{f.layoff_type}</span>
+                              </td>
+                              <td style={{ padding: "10px 12px", color: colors.textSecondary }}>{f.notice_date}</td>
+                              <td style={{ padding: "10px 12px", color: colors.textSecondary }}>{f.effective_date || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ padding: 24, borderRadius: 10, background: colors.positiveBg, textAlign: "center", fontSize: 14, color: colors.positive }}>
+                      No active WARN filings — a positive signal for employment stability.
+                    </div>
+                  )}
                 </div>
-                <div
-                  style={{
-                    padding: 20,
-                    borderRadius: 10,
-                    background: colors.neutralBg,
-                    textAlign: "center",
-                    fontSize: 14,
-                    color: colors.textSecondary,
-                  }}
-                >
-                  WARN Act and business registration alerts will appear here
-                  once state data adapters are connected.
+                {/* Business Activity */}
+                <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "24px 28px" }}>
+                  <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Business activity</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>
+                    {bizData.summary?.length > 0 ? "Net business formation is " + (bizData.summary[bizData.summary.length - 1]?.net >= 0 ? "positive" : "declining") : "Business registration data"}
+                  </div>
+                  {bizData.summary?.length > 0 ? (
+                    <>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+                        {[
+                          { label: "New registrations", value: bizData.summary.reduce((s, m) => s + m.new, 0), good: true },
+                          { label: "Dissolutions", value: bizData.summary.reduce((s, m) => s + m.dissolved, 0), good: false },
+                          { label: "Net formation", value: bizData.summary.reduce((s, m) => s + m.net, 0), good: bizData.summary.reduce((s, m) => s + m.net, 0) > 0 },
+                        ].map((s, i) => (
+                          <div key={i} style={{ padding: "14px 16px", borderRadius: 10, background: colors.warmGray }}>
+                            <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 4 }}>{s.label}</div>
+                            <div style={{ fontSize: 24, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: i === 2 ? (s.good ? colors.positive : colors.caution) : colors.text }}>{i === 2 && s.value > 0 ? "+" : ""}{s.value.toLocaleString()}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <AreaChart
+                        data={bizData.summary.map(m => ({ month: m.month.slice(5), net: m.net, newBiz: m.new }))}
+                        xKey="month" yKeys={["net"]}
+                        colors={[{ line: colors.chartGreen, area: colors.chartGreenArea }]}
+                        height={180}
+                      />
+                      <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 8 }}>Monthly net business formation (new registrations minus dissolutions)</div>
+                    </>
+                  ) : (
+                    <div style={{ padding: 24, borderRadius: 10, background: colors.neutralBg, textAlign: "center", fontSize: 14, color: colors.textSecondary }}>
+                      No business registration data available for this county yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === "compare" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "24px 28px" }}>
+                  <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", marginBottom: 4 }}>
+                    {jurisdiction?.state_name || "State"} counties
+                  </div>
+                  <div style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 20 }}>
+                    {stateData.length} counties ranked by Resilience Score
+                  </div>
+                  {stateData.length > 0 ? (
+                    <div>
+                      {stateData.map((county, i) => {
+                        const isMe = county.fips === fips;
+                        const scoreColor = county.score >= 70 ? colors.scoreGreen : county.score >= 50 ? colors.scoreAmber : colors.scoreRed;
+                        return (
+                          <div key={county.fips}
+                            onClick={() => { if (!isMe) setFips(county.fips); }}
+                            style={{
+                              display: "flex", alignItems: "center", gap: 12, padding: "10px 0",
+                              borderBottom: i < stateData.length - 1 ? `1px solid ${colors.warmGray}` : "none",
+                              cursor: isMe ? "default" : "pointer",
+                              background: isMe ? colors.accentLight : "transparent",
+                              margin: isMe ? "0 -12px" : 0,
+                              padding: isMe ? "10px 12px" : "10px 0",
+                              borderRadius: isMe ? 8 : 0,
+                            }}>
+                            <span style={{ width: 28, fontSize: 12, fontWeight: 500, color: colors.textTertiary, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>#{i + 1}</span>
+                            <span style={{ flex: 1, fontSize: 13, fontWeight: isMe ? 600 : 400, color: isMe ? colors.accent : colors.text }}>{county.name}</span>
+                            <div style={{ width: 100, height: 6, background: colors.warmGray, borderRadius: 3 }}>
+                              <div style={{ height: 6, borderRadius: 3, width: `${county.score}%`, background: isMe ? colors.accent : scoreColor, transition: "width 0.5s ease" }} />
+                            </div>
+                            <span style={{ fontSize: 14, fontWeight: 600, width: 32, textAlign: "right", fontVariantNumeric: "tabular-nums", fontFamily: "'Source Serif 4', Georgia, serif", color: isMe ? colors.accent : scoreColor }}>{Math.round(county.score)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ padding: 24, borderRadius: 10, background: colors.neutralBg, textAlign: "center", fontSize: 14, color: colors.textSecondary }}>
+                      No scored counties in {jurisdiction?.state_name || "this state"} yet. Scores are calculated after BLS data is ingested.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
