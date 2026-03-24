@@ -860,7 +860,7 @@ export default function ResilienceIQ() {
                             <span style={{ fontSize: 12, color: colors.textSecondary }}>/ 100 exposure index</span>
                           </div>
                           <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 4, background: exposureLevel.bg, color: exposureLevel.color, fontWeight: 500 }}>
-                            {exposureLevel.label} exposure \u00B7 P{parseFloat(aiExposure.aige_percentile).toFixed(0)}
+                            {exposureLevel.label} exposure {"\u00B7"} P{parseFloat(aiExposure.aige_percentile).toFixed(0)}
                           </span>
                         </div>
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -1111,7 +1111,7 @@ export default function ResilienceIQ() {
                     {aiExpLoading ? <LoadingSkeleton height={200} /> : topOccupations.length > 0 ? (
                       <HorizontalBarChart
                         items={topOccupations.slice(0, 7).map(o => ({
-                          label: o.occupation || o.name || o,
+                          label: o.title || o.occupation || o.name || "Unknown",
                           value: (o.exposure_score || o.score || 0.5) * 100,
                           displayValue: `${((o.exposure_score || o.score || 0.5) * 100).toFixed(0)}`,
                         }))}
