@@ -234,6 +234,28 @@ function useBusinessActivity(fips) {
   return { bizData: data, loading };
 }
 
+function useAiBriefing(fips) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!fips) return;
+    setLoading(true);
+    supabase
+      .from("ai_briefings")
+      .select("headline,body,key_insights,model_version,created_at")
+      .eq("fips_code", fips)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single()
+      .then(({ data, error }) => {
+        if (error) setData(null);
+        else setData(data);
+      })
+      .finally(() => setLoading(false));
+  }, [fips]);
+  return { briefing: data, loading };
+}
+
 function useStateComparison(stateAbbr) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -675,6 +697,7 @@ export default function ResilienceIQ() {
   const lfFirst = lausData.length > 0 ? lausData[0].labor_force : null;
   const lfChange = lfNow && lfFirst ? lfNow - lfFirst : 0;
 
+  const { briefing } = useAiBriefing(fips);
   const { warnFilings } = useWarnFilings(fips);
   const { bizData } = useBusinessActivity(fips);
   const { stateData } = useStateComparison(jurisdiction?.state_abbr);
@@ -1228,8 +1251,13 @@ export default function ResilienceIQ() {
                           color: colors.accent,
                         }}
                       >
-                        Economic briefing
+                        {briefing ? "AI economic briefing" : "Economic briefing"}
                       </span>
+                      {briefing && (
+                        <span style={{ fontSize: 11, color: colors.textTertiary, marginLeft: "auto" }}>
+                          Powered by Claude
+                        </span>
+                      )}
                     </div>
                     <div
                       style={{
@@ -1241,7 +1269,9 @@ export default function ResilienceIQ() {
                         marginBottom: 12,
                       }}
                     >
-                      {latestLaus && threeMonthAgo
+                      {briefing
+                        ? briefing.headline
+                        : latestLaus && threeMonthAgo
                         ? parseFloat(latestLaus.unemployment_rate) <
                           parseFloat(threeMonthAgo.unemployment_rate)
                           ? `Unemployment is trending down in ${jurisdiction?.county_name}`
@@ -1255,36 +1285,44 @@ export default function ResilienceIQ() {
                         color: colors.textSecondary,
                       }}
                     >
-                      <p style={{ margin: 0 }}>
-                        {jurisdiction?.county_name}&apos;s unemployment rate
-                        stands at{" "}
-                        {latestLaus
-                          ? parseFloat(
-                              latestLaus.unemployment_rate
-                            ).toFixed(1)
-                          : "\u2014"}
-                        %
-                        {nationalAvg
-                          ? `, ${parseFloat(latestLaus?.unemployment_rate) < nationalAvg ? "below" : "above"} the national average of ${nationalAvg}%`
-                          : ""}
-                        . The labor force is {lfNow?.toLocaleString()} with{" "}
-                        {latestLaus
-                          ? parseInt(latestLaus.employed).toLocaleString()
-                          : "\u2014"}{" "}
-                        employed.
-                        {lfChange > 0
-                          ? ` The labor force has grown by ${lfChange.toLocaleString()} over the past ${lausData.length} months.`
-                          : ""}
-                      </p>
-                      <p style={{ margin: "12px 0 0" }}>
-                        The Resilience Score of{" "}
-                        {score !== null ? Math.round(score) : "\u2014"}/100
-                        reflects the county&apos;s overall economic health
-                        relative to peer jurisdictions.{" "}
-                        {resilienceScore?.trend === "new"
-                          ? "This is the first score calculation. Future updates will show trend direction."
-                          : ""}
-                      </p>
+                      {briefing ? (
+                        <>
+                          {briefing.body.split('\n').filter(p => p.trim()).map((p, i) => (
+                            <p key={i} style={{ margin: i > 0 ? "12px 0 0" : 0 }}>{p}</p>
+                          ))}
+                          {briefing.key_insights?.length > 0 && (
+                            <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 8, background: colors.accentLight }}>
+                              <div style={{ fontSize: 12, fontWeight: 600, color: colors.accent, marginBottom: 6, textTransform: "uppercase" }}>Key insights</div>
+                              {briefing.key_insights.map((insight, i) => (
+                                <div key={i} style={{ fontSize: 13, color: colors.text, padding: "3px 0", display: "flex", gap: 8 }}>
+                                  <span style={{ color: colors.accent }}>•</span> {insight}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <p style={{ margin: 0 }}>
+                            {jurisdiction?.county_name}&apos;s unemployment rate
+                            stands at{" "}
+                            {latestLaus
+                              ? parseFloat(latestLaus.unemployment_rate).toFixed(1)
+                              : "\u2014"}%
+                            {nationalAvg
+                              ? `, ${parseFloat(latestLaus?.unemployment_rate) < nationalAvg ? "below" : "above"} the national average of ${nationalAvg}%`
+                              : ""}.
+                            The labor force is {lfNow?.toLocaleString()} with{" "}
+                            {latestLaus ? parseInt(latestLaus.employed).toLocaleString() : "\u2014"} employed.
+                            {lfChange > 0 ? ` The labor force has grown by ${lfChange.toLocaleString()} over the past ${lausData.length} months.` : ""}
+                          </p>
+                          <p style={{ margin: "12px 0 0" }}>
+                            The Resilience Score of {score !== null ? Math.round(score) : "\u2014"}/100
+                            reflects the county&apos;s overall economic health relative to peer jurisdictions.
+                            {resilienceScore?.trend === "new" ? " This is the first score calculation. Future updates will show trend direction." : ""}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
