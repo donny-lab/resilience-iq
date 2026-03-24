@@ -11,3 +11,20 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+@media (max-width: 768px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr) !important; }
+  .grid-2 { grid-template-columns: 1fr !important; }
+  .grid-3 { grid-template-columns: 1fr 1fr !important; }
+  .hero-grid { grid-template-columns: 1fr !important; gap: 16px !important; }
+  .stat-row { flex-direction: column !important; height: auto !important; }
+  .stat-row > div { border-left: none !important; border-top: 1px solid #E8E6E1; padding: 12px 0 !important; }
+  .stat-row > div:first-child { border-top: none; }
+  header { padding: 0 16px !important; }
+  main { padding: 16px 16px 48px !important; }
+}
+
+@media (max-width: 480px) {
+  .grid-4 { grid-template-columns: 1fr !important; }
+  .grid-3 { grid-template-columns: 1fr !important; }
+}

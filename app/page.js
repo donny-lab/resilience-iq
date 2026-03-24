@@ -980,6 +980,7 @@ export default function ResilienceIQ() {
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <LoadingSkeleton height={180} />
             <div
+              className="grid-4"
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(4, 1fr)",
@@ -991,6 +992,7 @@ export default function ResilienceIQ() {
               ))}
             </div>
             <div
+              className="grid-2"
               style={{
                 display: "grid",
                 gridTemplateColumns: "1fr 1fr",
@@ -1786,6 +1788,20 @@ export default function ResilienceIQ() {
                   >
                     View methodology
                   </div>
+                  <button
+                    onClick={() => {
+                      const rows = [["Month", "Unemployment Rate", "Labor Force", "Employed", "Unemployed"]];
+                      lausData.forEach(d => rows.push([fmtMonth(d.year, d.month), d.unemployment_rate, d.labor_force, d.employed, d.unemployed]));
+                      const csv = rows.map(r => r.join(",")).join("\n");
+                      const blob = new Blob([csv], { type: "text/csv" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a"); a.href = url; a.download = `${jurisdiction?.county_name || fips}_data.csv`; a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    style={{ fontSize: 12.5, color: colors.accent, fontWeight: 500, padding: "5px 12px", borderRadius: 6, background: colors.accentLight, border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    Export CSV
+                  </button>
                 </div>
               </div>
             )}
