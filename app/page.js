@@ -695,7 +695,7 @@ export default function ResilienceIQ() {
     lausData.length >= 4 ? lausData[lausData.length - 4] : null;
   const nationalAvg = useNationalAverage(latestLaus?.year, latestLaus?.month);
 
-  const isLoading = jLoading || lLoading || sLoading;
+  const isLoading = jLoading || sLoading; // Don't show skeleton when just changing time period
 
   const chartData = lausData.map((d) => ({
     month: fmtMonth(d.year, d.month),
@@ -1511,7 +1511,8 @@ export default function ResilienceIQ() {
                           nationalAvg
                           ? "Below national average"
                           : "Tracking national average"
-                        : "Monthly trend"}
+                        : "Monthly trend"}{" "}
+                      <span style={{ fontWeight: 400, color: colors.textTertiary, fontSize: 12 }}>({timePeriod}mo)</span>
                     </div>
                     <AreaChart
                       data={chartDataWithPeer}
