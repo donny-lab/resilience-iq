@@ -27,7 +27,7 @@ function useJurisdiction(fips) {
   return { jurisdiction: data, loading };
 }
 
-function useLausData(fips) {
+function useLausData(fips, months = 24) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -39,13 +39,13 @@ function useLausData(fips) {
       .eq("fips_code", fips)
       .order("year", { ascending: false })
       .order("month", { ascending: false })
-      .limit(24)
+      .limit(months)
       .then(({ data: rows, error }) => {
         if (error) console.error(error);
         else setData((rows || []).reverse());
       })
       .finally(() => setLoading(false));
-  }, [fips]);
+  }, [fips, months]);
   return { lausData: data, loading };
 }
 
@@ -71,36 +71,52 @@ function useResilienceScore(fips) {
   return { score: data, loading };
 }
 
-function usePeerScores(fips) {
+function usePeerScores(fips, currentScore) {
   const [data, setData] = useState([]);
+  const [rank, setRank] = useState(null);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (!fips) return;
+    if (!fips || currentScore == null) return;
     setLoading(true);
     (async () => {
       try {
-        const { data: scores, error: scoresErr } = await supabase
+        // Get count of counties scoring higher (for rank calculation)
+        const { count: higherCount } = await supabase
+          .from("resilience_scores")
+          .select("fips_code", { count: "exact", head: true })
+          .gt("overall_score", currentScore);
+        const { count: totalCount } = await supabase
+          .from("resilience_scores")
+          .select("fips_code", { count: "exact", head: true });
+        setRank((higherCount || 0) + 1);
+        setTotal(totalCount || 0);
+
+        // Fetch peers: counties with similar scores (±8 points)
+        const lo = Math.max(0, currentScore - 8);
+        const hi = Math.min(100, currentScore + 8);
+        const { data: scores } = await supabase
           .from("resilience_scores")
           .select("fips_code,overall_score,trend")
+          .gte("overall_score", lo)
+          .lte("overall_score", hi)
           .order("overall_score", { ascending: false })
-          .limit(200);
-        if (scoresErr) throw scoresErr;
+          .limit(50);
 
-        const fipsList = (scores || []).slice(0, 200).map((s) => s.fips_code);
-        const { data: jurisdictions, error: jErr } = await supabase
+        const fipsList = (scores || []).map((s) => s.fips_code);
+        const { data: jurisdictions } = await supabase
           .from("jurisdictions")
           .select("fips_code,county_name,state_abbr")
           .in("fips_code", fipsList);
-        if (jErr) throw jErr;
 
         const nameMap = {};
-        (jurisdictions || []).forEach((j) => {
-          nameMap[j.fips_code] = j;
-        });
+        (jurisdictions || []).forEach((j) => { nameMap[j.fips_code] = j; });
 
-        const currentIdx = scores.findIndex((s) => s.fips_code === fips);
-        const startIdx = Math.max(0, currentIdx - 4);
-        const peers = scores.slice(startIdx, startIdx + 8).map((s) => ({
+        // Find current county position and show ±4 peers
+        const sorted = (scores || []).sort((a, b) => parseFloat(b.overall_score) - parseFloat(a.overall_score));
+        const currentIdx = sorted.findIndex((s) => s.fips_code === fips);
+        const startIdx = Math.max(0, currentIdx - 3);
+        const peers = sorted.slice(startIdx, startIdx + 8).map((s) => ({
           fips: s.fips_code,
           name: nameMap[s.fips_code]
             ? `${nameMap[s.fips_code].county_name}, ${nameMap[s.fips_code].state_abbr}`
@@ -115,8 +131,8 @@ function usePeerScores(fips) {
         setLoading(false);
       }
     })();
-  }, [fips]);
-  return { peers: data, loading };
+  }, [fips, currentScore]);
+  return { peers: data, rank, total, loading };
 }
 
 function useNationalAverage(year, month) {
@@ -664,12 +680,14 @@ export default function ResilienceIQ() {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [timePeriod, setTimePeriod] = useState(24);
 
   const { jurisdiction, loading: jLoading } = useJurisdiction(fips);
-  const { lausData, loading: lLoading } = useLausData(fips);
+  const { lausData, loading: lLoading } = useLausData(fips, timePeriod);
   const { score: resilienceScore, loading: sLoading } =
     useResilienceScore(fips);
-  const { peers, loading: pLoading } = usePeerScores(fips);
+  const score = resilienceScore ? parseFloat(resilienceScore.overall_score) : null;
+  const { peers, rank: peerRank, total: peerTotal, loading: pLoading } = usePeerScores(fips, score);
   const { results: searchResults, search, searching } = useCountySearch();
 
   const latestLaus = lausData.length > 0 ? lausData[lausData.length - 1] : null;
@@ -678,9 +696,6 @@ export default function ResilienceIQ() {
   const nationalAvg = useNationalAverage(latestLaus?.year, latestLaus?.month);
 
   const isLoading = jLoading || lLoading || sLoading;
-  const score = resilienceScore
-    ? parseFloat(resilienceScore.overall_score)
-    : null;
 
   const chartData = lausData.map((d) => ({
     month: fmtMonth(d.year, d.month),
@@ -714,7 +729,7 @@ export default function ResilienceIQ() {
         {
           label: "Unemployment vs national",
           score: parseFloat(resilienceScore.unemployment_score),
-          weight: 25,
+          weight: 30,
         },
         {
           label: "Unemployment trend (3mo)",
@@ -722,24 +737,24 @@ export default function ResilienceIQ() {
           weight: 15,
         },
         {
-          label: "Labor force participation",
+          label: "Labor force size",
           score: parseFloat(resilienceScore.labor_force_score),
-          weight: 15,
+          weight: 10,
         },
         {
-          label: "Job posting volume",
+          label: "Labor force trend",
           score: parseFloat(resilienceScore.job_posting_score),
-          weight: 15,
+          weight: 10,
         },
         {
-          label: "Business formation rate",
+          label: "Business formation",
           score: parseFloat(resilienceScore.business_formation_score),
           weight: 15,
         },
         {
           label: "WARN activity",
           score: parseFloat(resilienceScore.warn_activity_score),
-          weight: 15,
+          weight: 20,
         },
       ]
     : [];
@@ -999,6 +1014,27 @@ export default function ResilienceIQ() {
           padding: "24px 24px 64px",
         }}
       >
+        {/* Time period selector */}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, gap: 4 }}>
+          <span style={{ fontSize: 12, color: colors.textSecondary, alignSelf: "center", marginRight: 8 }}>Period</span>
+          {[
+            { label: "3M", value: 3 },
+            { label: "6M", value: 6 },
+            { label: "12M", value: 12 },
+            { label: "24M", value: 24 },
+          ].map(p => (
+            <button key={p.value} onClick={() => setTimePeriod(p.value)}
+              style={{
+                padding: "4px 12px", borderRadius: 6, fontSize: 12, fontWeight: 500,
+                border: `1px solid ${timePeriod === p.value ? colors.accent : colors.cardBorder}`,
+                background: timePeriod === p.value ? colors.accent : colors.card,
+                color: timePeriod === p.value ? "#fff" : colors.textSecondary,
+                cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s",
+              }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
         {isLoading ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <LoadingSkeleton height={180} />
@@ -1195,11 +1231,7 @@ export default function ResilienceIQ() {
                             color: colors.accent,
                           }}
                         >
-                          {peers.length > 0
-                            ? peers
-                                .sort((a, b) => b.score - a.score)
-                                .findIndex((p) => p.isCurrent) + 1
-                            : "\u2014"}
+                          {peerRank || "\u2014"}
                         </span>
                         <span
                           style={{
@@ -1207,7 +1239,7 @@ export default function ResilienceIQ() {
                             color: colors.textSecondary,
                           }}
                         >
-                          of {peers.length}
+                          of {peerTotal.toLocaleString()}
                         </span>
                       </div>
                     </div>
@@ -1380,16 +1412,10 @@ export default function ResilienceIQ() {
                     },
                     {
                       label: "Peer standing",
-                      value:
-                        peers.length > 0
-                          ? `#${peers.sort((a, b) => b.score - a.score).findIndex((p) => p.isCurrent) + 1}`
-                          : "\u2014",
-                      sub: `of ${peers.length} similar counties`,
-                      good: true,
-                      context:
-                        peers.length > 0
-                          ? `Top score: ${Math.max(...peers.map((p) => p.score))}`
-                          : "",
+                      value: peerRank ? `#${peerRank.toLocaleString()}` : "\u2014",
+                      sub: `of ${peerTotal.toLocaleString()} counties`,
+                      good: peerRank ? peerRank <= peerTotal * 0.5 : true,
+                      context: peerRank ? `Top ${((peerRank / peerTotal) * 100).toFixed(0)}% nationally` : "",
                     },
                   ].map((card, i) => (
                     <div
