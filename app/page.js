@@ -1044,6 +1044,16 @@ export default function ResilienceIQ() {
             {/* ==================== AI IMPACT TAB ==================== */}
             {activeTab === "ai" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {(aiExpLoading || aiReadLoading) && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    <LoadingSkeleton height={240} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                      <LoadingSkeleton height={300} /><LoadingSkeleton height={300} />
+                    </div>
+                  </div>
+                )}
+                {!aiExpLoading && !aiReadLoading && (
+                <>
                 {/* AI Hero Card */}
                 <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
                   <div style={{ padding: "24px 32px", borderBottom: `1px solid ${colors.cardBorder}`, background: "linear-gradient(135deg, #FAFAF8 0%, #F3EEFB 100%)" }}>
@@ -1168,7 +1178,7 @@ export default function ResilienceIQ() {
                         const indLevel = getExposureLevel(indScore);
                         return (
                           <div key={i} style={{ padding: "18px 20px", borderRadius: 10, background: colors.warmGray, display: "flex", flexDirection: "column", gap: 8 }}>
-                            <span style={{ fontSize: 13, fontWeight: 500, color: colors.text }}>{ind.industry || ind.name || ind}</span>
+                            <span style={{ fontSize: 13, fontWeight: 500, color: colors.text }}>{ind.title || ind.industry || ind.name || ind}</span>
                             <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
                               <span style={{ fontSize: 24, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: indLevel.color }}>{(indScore * 100).toFixed(0)}</span>
                               <span style={{ fontSize: 12, color: colors.textSecondary }}>/100</span>
@@ -1282,6 +1292,8 @@ export default function ResilienceIQ() {
                     View AI methodology
                   </div>
                 </div>
+                </>
+                )}
               </div>
             )}
 
