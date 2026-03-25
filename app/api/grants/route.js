@@ -1,39 +1,16 @@
 import { NextResponse } from "next/server";
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
-
-let grantsData = null;
-
-function loadData() {
-  if (grantsData) return grantsData;
-  const paths = [
-    join(process.cwd(), "data", "federal-grants.json"),
-    join(process.cwd(), "..", "resilience-iq", "data", "federal-grants.json"),
-  ];
-  for (const p of paths) {
-    if (existsSync(p)) {
-      try {
-        grantsData = JSON.parse(readFileSync(p, "utf-8"));
-        return grantsData;
-      } catch (e) {
-        console.error("Error loading grants data:", e);
-      }
-    }
-  }
-  return null;
-}
+import grantsRaw from "../../../data/federal-grants.json";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const fips = searchParams.get("fips");
 
-  const raw = loadData();
-  if (!fips || !raw) {
+  if (!fips) {
     return NextResponse.json({ awards: [], summary: null });
   }
 
-  // Structure: { metadata, summary: { fips: {...} }, counties: [ { fips_code, total_grant_obligations, categories: {...} } ] }
-  const counties = raw.counties || [];
+  // Structure: { metadata, summary, counties: [ { fips_code, total_grant_obligations, categories: {...} } ] }
+  const counties = grantsRaw?.counties || [];
   const county = counties.find((c) => c.fips_code === fips);
 
   if (!county) {

@@ -1,36 +1,12 @@
 import { NextResponse } from "next/server";
-import { readFileSync, existsSync } from "fs";
-import { join } from "path";
-
-// Try to load QCEW data from JSON file or return empty
-let qcewData = null;
-
-function loadData() {
-  if (qcewData) return qcewData;
-  const paths = [
-    join(process.cwd(), "data", "qcew-data.json"),
-    join(process.cwd(), "..", "resilience-iq", "data", "qcew-data.json"),
-  ];
-  for (const p of paths) {
-    if (existsSync(p)) {
-      try {
-        qcewData = JSON.parse(readFileSync(p, "utf-8"));
-        return qcewData;
-      } catch (e) {
-        console.error("Error loading QCEW data:", e);
-      }
-    }
-  }
-  return [];
-}
+import qcewRaw from "../../../data/qcew-data.json";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const fips = searchParams.get("fips");
 
-  const raw = loadData();
   // Handle nested structure: { metadata, data: [...] } or flat array
-  const data = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+  const data = Array.isArray(qcewRaw) ? qcewRaw : (Array.isArray(qcewRaw?.data) ? qcewRaw.data : []);
 
   if (!fips) {
     return NextResponse.json({ industries: [], error: "fips required" });
