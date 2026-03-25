@@ -1140,7 +1140,7 @@ export default function ResilienceIQ() {
                       { label: "Workers augmented", value: workersAugmented.toLocaleString(), color: colors.scoreAmber, sub: "AI-assisted roles" },
                       { label: "Wages at risk", value: `$${(annualWagesAtRisk / 1000000).toFixed(0)}M`, color: colors.scoreRed, sub: "annual impact" },
                       { label: "Readiness gap", value: readinessGap > 0 ? `-${readinessGap.toFixed(0)}` : `+${Math.abs(gapScore).toFixed(0)}`, color: readinessGap > 0 ? colors.scoreRed : colors.scoreGreen, sub: readinessGap > 0 ? "underprepared" : "net prepared" },
-                      { label: "STEM workforce", value: `${stemPct.toFixed(1)}%`, color: stemPct > 6.5 ? colors.scoreGreen : colors.scoreAmber, sub: `vs 6.5% national` },
+                      { label: "Knowledge workers", value: `${stemPct.toFixed(0)}%`, color: stemPct > 40 ? colors.scoreGreen : colors.scoreAmber, sub: `mgmt/business/science/arts` },
                     ].map((stat, i) => (
                       <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, padding: "0 16px", borderLeft: i > 0 ? `1px solid ${colors.cardBorder}` : "none" }}>
                         <span style={{ fontSize: 11, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.03em" }}>{stat.label}</span>
@@ -1230,7 +1230,7 @@ export default function ResilienceIQ() {
                           { label: "Bachelor's degree or higher", value: parseFloat(aiReadiness.bachelors_plus_pct), avg: 33, unit: "%" },
                           { label: "Graduate/professional degree", value: parseFloat(aiReadiness.graduate_plus_pct), avg: 13, unit: "%" },
                           { label: "Broadband internet access", value: parseFloat(aiReadiness.broadband_pct), avg: 87, unit: "%" },
-                          { label: "STEM workforce share", value: parseFloat(aiReadiness.stem_workforce_pct), avg: 6.5, unit: "%" },
+                          { label: "Knowledge economy share", value: parseFloat(aiReadiness.stem_workforce_pct), avg: 39, unit: "%" },
                         ].map((ind, i) => (
                           <div key={i} style={{ padding: "12px 16px", borderRadius: 10, background: colors.warmGray }}>
                             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -1363,13 +1363,13 @@ export default function ResilienceIQ() {
                       timeline: bbPct < 85 ? "12-24 months" : "Ongoing",
                     },
                     {
-                      priority: stemPct < 5 ? 1 : 2,
-                      title: "STEM pipeline development",
-                      metric: `${stemPct.toFixed(1)}%`,
-                      metricLabel: `STEM workforce (${stemPct > 6.5 ? "above" : "below"} 6.5% avg)`,
-                      desc: `Counties with higher STEM workforces capture more AI-created jobs. Each 1% increase in STEM share correlates with 2.3% higher median wage growth over 5 years.`,
-                      action: stemPct < 5 ? "Create STEM scholarship program and partner with universities on AI research" : "Strengthen K-12 STEM pipeline and attract AI employers",
-                      urgency: stemPct < 5 ? "high" : "moderate",
+                      priority: stemPct < 35 ? 1 : 2,
+                      title: "Knowledge economy pipeline",
+                      metric: `${stemPct.toFixed(0)}%`,
+                      metricLabel: `knowledge workers (${stemPct > 39 ? "above" : "below"} 39% avg)`,
+                      desc: `${stemPct.toFixed(0)}% of jobs are in management, business, science, and arts occupations. These are the roles most likely to be augmented (not displaced) by AI, creating productivity gains if workers are AI-literate.`,
+                      action: stemPct < 35 ? "Attract knowledge-economy employers and invest in post-secondary STEM pathways" : "Launch AI literacy programs for existing knowledge workers to maximize augmentation",
+                      urgency: stemPct < 35 ? "high" : "moderate",
                       timeline: "12-36 months",
                     },
                   ].sort((a, b) => a.priority - b.priority);
