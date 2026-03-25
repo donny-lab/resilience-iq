@@ -1552,7 +1552,7 @@ export default function ResilienceIQ() {
                       Federal awards and grants from USAspending.gov for FY2024. Includes economic development, workforce, infrastructure, and research funding.
                     </p>
                   </div>
-                  {grantsLoading ? <div style={{ padding: 32 }}><LoadingSkeleton height={300} /></div> : grantsData.awards?.length > 0 ? (
+                  {grantsLoading ? <div style={{ padding: 32 }}><LoadingSkeleton height={300} /></div> : (grantsData.summary?.total_amount > 0 || grantsData.awards?.length > 0) ? (
                     <div style={{ padding: "24px 32px" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
                         {[

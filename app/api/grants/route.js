@@ -20,59 +20,62 @@ function loadData() {
       }
     }
   }
-  return [];
+  return null;
 }
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const fips = searchParams.get("fips");
 
-  const allData = loadData();
-  if (!fips) {
-    return NextResponse.json({ awards: [], summary: null, error: "fips required" });
+  const raw = loadData();
+  if (!fips || !raw) {
+    return NextResponse.json({ awards: [], summary: null });
   }
 
-  // Match by FIPS - the grants data might use state+county codes or full FIPS
-  const stateCode = fips.slice(0, 2);
-  const countyCode = fips.slice(2);
+  // Structure: { metadata, summary: { fips: {...} }, counties: [ { fips_code, total_grant_obligations, categories: {...} } ] }
+  const counties = raw.counties || [];
+  const county = counties.find((c) => c.fips_code === fips);
 
-  let awards = [];
-  if (Array.isArray(allData)) {
-    awards = allData.filter((a) => {
-      // Try various matching strategies
-      if (a.fips_code === fips) return true;
-      if (a.county_fips === fips) return true;
-      if (a.place_of_performance_county_fips === countyCode && a.place_of_performance_state_fips === stateCode) return true;
-      if (a["Place of Performance County FIPS"] === countyCode && a["Place of Performance State FIPS"] === stateCode) return true;
-      return false;
+  if (!county) {
+    return NextResponse.json({ awards: [], summary: null });
+  }
+
+  // Collect all awards from categories
+  const categories = county.categories || {};
+  const allAwards = [];
+  const categoryBreakdown = [];
+
+  for (const [catName, catData] of Object.entries(categories)) {
+    const awards = catData?.awards || [];
+    const catTotal = catData?.total_obligations || catData?.obligation_amount || 0;
+    categoryBreakdown.push({
+      name: catName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      amount: catTotal,
+      count: awards.length,
     });
-  } else if (allData[fips]) {
-    awards = allData[fips];
+    for (const a of awards) {
+      allAwards.push({
+        recipient: a.recipient_name || a.recipient || "Unknown",
+        amount: parseFloat(a.award_amount || a.obligation_amount || a.total_obligation || 0),
+        description: a.description || a.award_description || "",
+        agency: a.awarding_agency || a.funding_agency || catName.replace(/_/g, " "),
+        category: catName.replace(/_/g, " "),
+        start_date: a.start_date || null,
+      });
+    }
   }
 
-  // Sort by amount descending
-  awards = awards.sort((a, b) => {
-    const amtA = Math.abs(parseFloat(a.award_amount || a["Award Amount"] || a.total_obligation || 0));
-    const amtB = Math.abs(parseFloat(b.award_amount || b["Award Amount"] || b.total_obligation || 0));
-    return amtB - amtA;
-  }).slice(0, 50);
-
-  const totalAmount = awards.reduce((s, a) => s + Math.abs(parseFloat(a.award_amount || a["Award Amount"] || a.total_obligation || 0)), 0);
-  const agencies = [...new Set(awards.map(a => a.awarding_agency || a["Awarding Agency"] || "Unknown"))];
+  // Sort by amount
+  allAwards.sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
 
   return NextResponse.json({
-    awards: awards.map(a => ({
-      recipient: a.recipient_name || a["Recipient Name"] || "Unknown",
-      amount: parseFloat(a.award_amount || a["Award Amount"] || a.total_obligation || 0),
-      description: a.description || a["Description"] || "",
-      agency: a.awarding_agency || a["Awarding Agency"] || "Unknown",
-      start_date: a.start_date || a["Start Date"] || null,
-      cfda: a.cfda_number || a["CFDA Number"] || null,
-    })),
+    awards: allAwards.slice(0, 50),
     summary: {
-      total_awards: awards.length,
-      total_amount: totalAmount,
-      agencies: agencies.slice(0, 5),
+      total_awards: allAwards.length || county.total_awards_found || 0,
+      total_amount: county.total_grant_obligations || 0,
+      county_name: county.county_name || "",
+      fiscal_year: county.fiscal_year || "FY2024",
+      categories: categoryBreakdown,
     },
   });
 }

@@ -28,7 +28,10 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const fips = searchParams.get("fips");
 
-  const data = loadData();
+  const raw = loadData();
+  // Handle nested structure: { metadata, data: [...] } or flat array
+  const data = Array.isArray(raw) ? raw : (Array.isArray(raw?.data) ? raw.data : []);
+
   if (!fips) {
     return NextResponse.json({ industries: [], error: "fips required" });
   }
