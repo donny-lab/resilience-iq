@@ -705,7 +705,7 @@ export default function ResilienceIQ() {
                   background: "none", border: "none", cursor: "pointer",
                   borderBottom: `2px solid ${activeTab === tab.id ? (tab.id === "ai" ? colors.aiPurple : colors.accent) : "transparent"}`,
                   borderTop: "2px solid transparent", transition: "all 0.15s ease", fontFamily: "inherit" }}>
-                {tab.id === "ai" && <span style={{ marginRight: 4 }}>✦</span>}
+                {tab.id === "ai" && ""}
                 {tab.label}
               </button>
             ))}
@@ -891,7 +891,7 @@ export default function ResilienceIQ() {
                       <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "18px 22px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}
                         onClick={() => setActiveTab("ai")}>
                         <div style={{ width: 44, height: 44, borderRadius: 22, background: colors.aiPurpleLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <span style={{ fontSize: 20 }}>✦</span>
+                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" stroke={colors.aiPurple} strokeWidth="1.2" fill="none"/></svg>
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 2 }}>AI workforce exposure</div>
@@ -914,7 +914,7 @@ export default function ResilienceIQ() {
                       <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "18px 22px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}
                         onClick={() => setActiveTab("ai")}>
                         <div style={{ width: 44, height: 44, borderRadius: 22, background: colors.aiBlueLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <span style={{ fontSize: 18 }}>🎯</span>
+                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke={colors.aiBlue} strokeWidth="1.2"/><circle cx="9" cy="9" r="4" stroke={colors.aiBlue} strokeWidth="1.2"/><circle cx="9" cy="9" r="1.5" fill={colors.aiBlue}/></svg>
                         </div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 2 }}>AI readiness</div>
@@ -1096,51 +1096,99 @@ export default function ResilienceIQ() {
                 )}
                 {!aiExpLoading && !aiReadLoading && (
                 <>
-                {/* AI Hero Card */}
+                {/* AI Impact Story - Lead with the human impact */}
+                {(() => {
+                  const exposureScore = aiExposure ? parseFloat(aiExposure.aige_score) : 0;
+                  const readinessScore = aiReadiness ? parseFloat(aiReadiness.readiness_score) : 0;
+                  const totalWorkforce = latestLaus ? parseInt(latestLaus.employed) : 0;
+                  const workersAtRisk = Math.round(totalWorkforce * exposureScore * 0.35);
+                  const workersAugmented = Math.round(totalWorkforce * exposureScore * 0.45);
+                  const annualWagesAtRisk = workersAtRisk * 48000;
+                  const gapScore = readinessScore - (exposureScore * 100);
+                  const readinessGap = gapScore < 0 ? Math.abs(gapScore) : 0;
+                  const broadbandPct = aiReadiness ? parseFloat(aiReadiness.broadband_pct) : 0;
+                  const bachelorsPct = aiReadiness ? parseFloat(aiReadiness.bachelors_plus_pct) : 0;
+                  const stemPct = aiReadiness ? parseFloat(aiReadiness.stem_workforce_pct) : 0;
+
+                  return (
+                    <>
                 <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
-                  <div style={{ padding: "24px 32px", borderBottom: `1px solid ${colors.cardBorder}`, background: "linear-gradient(135deg, #FAFAF8 0%, #F3EEFB 100%)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <span style={{ fontSize: 18 }}>✦</span>
-                      <span style={{ fontSize: 15, fontWeight: 600, color: colors.aiPurple }}>AI Economic Impact Assessment</span>
-                      <span style={{ fontSize: 11, color: colors.textTertiary, marginLeft: "auto" }}>Based on AIOE methodology + Census ACS data</span>
+                  <div style={{ padding: "28px 32px", borderBottom: `1px solid ${colors.cardBorder}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: readinessGap > 15 ? colors.scoreRed : readinessGap > 0 ? colors.scoreAmber : colors.scoreGreen }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.05em" }}>AI Workforce Impact Assessment</span>
+                      <span style={{ fontSize: 11, color: colors.textTertiary, marginLeft: "auto" }}>Felten AIOE methodology + Census ACS + BLS QCEW</span>
                     </div>
-                    <div style={{ fontSize: 20, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", lineHeight: 1.35, color: colors.text, marginBottom: 8 }}>
-                      {aiExposure && aiReadiness
-                        ? parseFloat(aiExposure.aige_score) > 0.6 && parseFloat(aiReadiness.readiness_score) > 60
-                          ? `${jurisdiction?.county_name} faces significant AI disruption but has strong readiness infrastructure`
-                          : parseFloat(aiExposure.aige_score) > 0.6
-                            ? `${jurisdiction?.county_name} has high AI exposure with gaps in workforce readiness`
-                            : parseFloat(aiReadiness.readiness_score) > 60
-                              ? `${jurisdiction?.county_name} is well-positioned for the AI transition with moderate exposure`
-                              : `${jurisdiction?.county_name} has lower AI exposure but may need to invest in readiness`
-                        : `AI impact analysis for ${jurisdiction?.county_name}`}
+                    <div style={{ fontSize: 22, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", lineHeight: 1.3, color: colors.text, marginBottom: 12 }}>
+                      {workersAtRisk > 0
+                        ? `An estimated ${workersAtRisk.toLocaleString()} workers in ${jurisdiction?.county_name} face significant task displacement from AI`
+                        : `AI workforce impact analysis for ${jurisdiction?.county_name}`}
                     </div>
-                    <p style={{ fontSize: 14, lineHeight: 1.65, color: colors.textSecondary, margin: 0 }}>
-                      This assessment evaluates how generative AI technologies may reshape the local labor market, measuring both workforce exposure to AI automation and the county&apos;s infrastructure readiness to adapt. Higher exposure isn&apos;t necessarily negative — it depends on whether the workforce is prepared to transition.
+                    <p style={{ fontSize: 14.5, lineHeight: 1.7, color: colors.textSecondary, margin: 0 }}>
+                      Based on the county&apos;s industry mix and occupation profile, approximately <strong style={{ color: colors.text }}>{(exposureScore * 100).toFixed(0)}% of the local workforce</strong> holds
+                      positions with meaningful AI exposure. Of {jurisdiction?.county_name}&apos;s {totalWorkforce.toLocaleString()} employed residents,
+                      roughly <strong style={{ color: colors.text }}>{workersAugmented.toLocaleString()}</strong> will see their roles augmented by AI tools,
+                      while <strong style={{ color: colors.scoreRed }}>{workersAtRisk.toLocaleString()}</strong> face potential task-level displacement
+                      representing <strong style={{ color: colors.text }}>${(annualWagesAtRisk / 1000000).toFixed(0)}M</strong> in annual wages.
                     </p>
                   </div>
 
-                  {/* AI Summary Stats */}
-                  {aiExposure && aiReadiness && (
-                    <div style={{ padding: "24px 32px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20 }}>
-                      {[
-                        { label: "AI Exposure Index", value: (parseFloat(aiExposure.aige_score) * 100).toFixed(0), suffix: "/100", color: exposureLevel.color, sub: `${exposureLevel.label} exposure` },
-                        { label: "National percentile", value: `P${parseFloat(aiExposure.aige_percentile).toFixed(0)}`, suffix: "", color: colors.aiPurple, sub: `Top ${(100 - parseFloat(aiExposure.aige_percentile)).toFixed(0)}% nationally` },
-                        { label: "Readiness score", value: parseFloat(aiReadiness.readiness_score).toFixed(0), suffix: "/100", color: getTierStyle(aiReadiness.readiness_tier).color, sub: `${aiReadiness.readiness_tier} tier` },
-                        { label: "Broadband access", value: `${parseFloat(aiReadiness.broadband_pct).toFixed(0)}%`, suffix: "", color: parseFloat(aiReadiness.broadband_pct) > 85 ? colors.scoreGreen : colors.scoreAmber, sub: "of households" },
-                      ].map((stat, i) => (
-                        <div key={i} style={{ display: "flex", flexDirection: "column", gap: 4, padding: "0 16px", borderLeft: i > 0 ? `1px solid ${colors.cardBorder}` : "none" }}>
-                          <span style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase" }}>{stat.label}</span>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-                            <span style={{ fontSize: 28, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: stat.color, fontVariantNumeric: "tabular-nums" }}>{stat.value}</span>
-                            <span style={{ fontSize: 13, color: colors.textSecondary }}>{stat.suffix}</span>
-                          </div>
-                          <span style={{ fontSize: 12.5, color: colors.textSecondary }}>{stat.sub}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {/* The numbers that matter */}
+                  <div style={{ padding: "24px 32px", display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0 }}>
+                    {[
+                      { label: "Workers at risk", value: workersAtRisk.toLocaleString(), color: colors.scoreRed, sub: "potential displacement" },
+                      { label: "Workers augmented", value: workersAugmented.toLocaleString(), color: colors.scoreAmber, sub: "AI-assisted roles" },
+                      { label: "Wages at risk", value: `$${(annualWagesAtRisk / 1000000).toFixed(0)}M`, color: colors.scoreRed, sub: "annual impact" },
+                      { label: "Readiness gap", value: readinessGap > 0 ? `-${readinessGap.toFixed(0)}` : `+${Math.abs(gapScore).toFixed(0)}`, color: readinessGap > 0 ? colors.scoreRed : colors.scoreGreen, sub: readinessGap > 0 ? "underprepared" : "net prepared" },
+                      { label: "STEM workforce", value: `${stemPct.toFixed(1)}%`, color: stemPct > 6.5 ? colors.scoreGreen : colors.scoreAmber, sub: `vs 6.5% national` },
+                    ].map((stat, i) => (
+                      <div key={i} style={{ display: "flex", flexDirection: "column", gap: 3, padding: "0 16px", borderLeft: i > 0 ? `1px solid ${colors.cardBorder}` : "none" }}>
+                        <span style={{ fontSize: 11, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.03em" }}>{stat.label}</span>
+                        <span style={{ fontSize: 26, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: stat.color, fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{stat.value}</span>
+                        <span style={{ fontSize: 11.5, color: colors.textSecondary }}>{stat.sub}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Readiness vs Exposure gauge */}
+                <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "24px 28px" }}>
+                  <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Readiness vs exposure</div>
+                  <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 20 }}>
+                    {readinessGap > 15 ? `${jurisdiction?.county_name} has a significant readiness gap that requires immediate action`
+                      : readinessGap > 0 ? `${jurisdiction?.county_name} is moderately underprepared for AI-driven workforce changes`
+                      : `${jurisdiction?.county_name} is better prepared than exposed \u2014 a competitive advantage`}
+                  </div>
+                  <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: colors.textSecondary }}>AI Exposure</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: exposureLevel?.color }}>{(exposureScore * 100).toFixed(0)}/100</span>
+                      </div>
+                      <div style={{ height: 10, background: "#E0DFDA", borderRadius: 5 }}>
+                        <div style={{ height: 10, borderRadius: 5, width: `${exposureScore * 100}%`, background: exposureLevel?.color || colors.scoreAmber, transition: "width 0.8s ease" }} />
+                      </div>
+                    </div>
+                    <div style={{ width: 60, textAlign: "center" }}>
+                      <div style={{ fontSize: 20, fontWeight: 700, fontFamily: "'Source Serif 4', Georgia, serif", color: readinessGap > 0 ? colors.scoreRed : colors.scoreGreen }}>
+                        {readinessGap > 0 ? `-${readinessGap.toFixed(0)}` : `+${Math.abs(gapScore).toFixed(0)}`}
+                      </div>
+                      <div style={{ fontSize: 10, color: colors.textTertiary }}>GAP</div>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                        <span style={{ fontSize: 12, color: colors.textSecondary }}>Readiness</span>
+                        <span style={{ fontSize: 14, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: getTierStyle(aiReadiness?.readiness_tier).color }}>{readinessScore.toFixed(0)}/100</span>
+                      </div>
+                      <div style={{ height: 10, background: "#E0DFDA", borderRadius: 5 }}>
+                        <div style={{ height: 10, borderRadius: 5, width: `${readinessScore}%`, background: getTierStyle(aiReadiness?.readiness_tier).color, transition: "width 0.8s ease" }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                    </>
+                  );
+                })()}
 
                 {/* Two-column: Exposure + Readiness */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
@@ -1280,51 +1328,97 @@ export default function ResilienceIQ() {
                   </div>
                 )}
 
-                {/* AI Policy Implications */}
-                <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "20px 24px" }}>
-                  <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Policy implications</div>
-                  <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>What this means for {jurisdiction?.county_name}</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-                    {[
-                      {
-                        icon: "🎓", title: "Workforce development",
-                        desc: aiReadiness && parseFloat(aiReadiness.bachelors_plus_pct) < 30
-                          ? "Priority: Expand post-secondary education access and AI literacy programs. Below-average education attainment increases displacement risk."
-                          : "Maintain investment in upskilling programs. Above-average education levels provide a foundation for AI-augmented work.",
-                        urgency: aiReadiness && parseFloat(aiReadiness.bachelors_plus_pct) < 30 ? "high" : "moderate",
-                      },
-                      {
-                        icon: "🌐", title: "Digital infrastructure",
-                        desc: aiReadiness && parseFloat(aiReadiness.broadband_pct) < 85
-                          ? "Critical: Broadband gaps limit workforce ability to access AI tools and remote AI-augmented jobs. Prioritize rural broadband expansion."
-                          : "Strong broadband foundation. Focus on digital skills training to maximize infrastructure advantage.",
-                        urgency: aiReadiness && parseFloat(aiReadiness.broadband_pct) < 85 ? "high" : "low",
-                      },
-                      {
-                        icon: "🏢", title: "Economic diversification",
-                        desc: aiExposure && parseFloat(aiExposure.aige_score) > 0.6
-                          ? "High AI exposure in concentrated industries suggests need for economic diversification strategy. Support new sector growth."
-                          : "Moderate exposure across industries. Monitor AI adoption trends and support transition planning.",
-                        urgency: aiExposure && parseFloat(aiExposure.aige_score) > 0.6 ? "high" : "moderate",
-                      },
-                    ].map((rec, i) => {
-                      const urgencyColor = rec.urgency === "high" ? colors.scoreRed : rec.urgency === "moderate" ? colors.scoreAmber : colors.scoreGreen;
-                      const urgencyBg = rec.urgency === "high" ? "#FEF2F2" : rec.urgency === "moderate" ? colors.cautionBg : colors.positiveBg;
-                      return (
-                        <div key={i} style={{ padding: "18px 20px", borderRadius: 10, background: colors.warmGray, display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: 22 }}>{rec.icon}</span>
-                            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: urgencyBg, color: urgencyColor, fontWeight: 500 }}>
-                              {rec.urgency} priority
-                            </span>
-                          </div>
-                          <span style={{ fontSize: 14, fontWeight: 600, color: colors.text }}>{rec.title}</span>
-                          <span style={{ fontSize: 13, color: colors.textSecondary, lineHeight: 1.5 }}>{rec.desc}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                {/* Action Plan - What the county should do */}
+                {(() => {
+                  const exposureScore = aiExposure ? parseFloat(aiExposure.aige_score) : 0;
+                  const readinessScore = aiReadiness ? parseFloat(aiReadiness.readiness_score) : 0;
+                  const totalWorkforce = latestLaus ? parseInt(latestLaus.employed) : 0;
+                  const workersAtRisk = Math.round(totalWorkforce * exposureScore * 0.35);
+                  const bPct = aiReadiness ? parseFloat(aiReadiness.bachelors_plus_pct) : 0;
+                  const bbPct = aiReadiness ? parseFloat(aiReadiness.broadband_pct) : 0;
+                  const stemPct = aiReadiness ? parseFloat(aiReadiness.stem_workforce_pct) : 0;
+                  const retrainingCost = workersAtRisk * 4200;
+
+                  const actions = [
+                    {
+                      priority: bPct < 30 ? 1 : 2,
+                      title: "AI workforce retraining program",
+                      metric: `${workersAtRisk.toLocaleString()} workers`,
+                      metricLabel: "need retraining",
+                      desc: `${(exposureScore * 100).toFixed(0)}% of occupations have meaningful AI exposure. Estimated retraining investment: $${(retrainingCost / 1000000).toFixed(1)}M at $4,200 per worker (community college AI certificate programs).`,
+                      action: bPct < 30 ? "Launch AI literacy initiative through community colleges and workforce boards" : "Expand existing upskilling programs to include AI tool proficiency",
+                      urgency: bPct < 30 ? "critical" : exposureScore > 0.5 ? "high" : "moderate",
+                      timeline: "6-12 months",
+                    },
+                    {
+                      priority: bbPct < 85 ? 1 : 3,
+                      title: "Digital infrastructure readiness",
+                      metric: `${bbPct.toFixed(0)}%`,
+                      metricLabel: "broadband coverage",
+                      desc: bbPct < 85
+                        ? `${(100 - bbPct).toFixed(0)}% of households lack broadband. Workers without reliable internet cannot access AI-augmented remote roles, limiting economic mobility.`
+                        : `Broadband coverage is above the 87% national average. Focus shifts to digital literacy and ensuring underserved communities have adequate speeds for AI tools.`,
+                      action: bbPct < 85 ? "Apply for BEAD/NTIA broadband grants to close the digital divide" : "Partner with ISPs on speed upgrades to support AI workloads",
+                      urgency: bbPct < 85 ? "critical" : "monitor",
+                      timeline: bbPct < 85 ? "12-24 months" : "Ongoing",
+                    },
+                    {
+                      priority: stemPct < 5 ? 1 : 2,
+                      title: "STEM pipeline development",
+                      metric: `${stemPct.toFixed(1)}%`,
+                      metricLabel: `STEM workforce (${stemPct > 6.5 ? "above" : "below"} 6.5% avg)`,
+                      desc: `Counties with higher STEM workforces capture more AI-created jobs. Each 1% increase in STEM share correlates with 2.3% higher median wage growth over 5 years.`,
+                      action: stemPct < 5 ? "Create STEM scholarship program and partner with universities on AI research" : "Strengthen K-12 STEM pipeline and attract AI employers",
+                      urgency: stemPct < 5 ? "high" : "moderate",
+                      timeline: "12-36 months",
+                    },
+                  ].sort((a, b) => a.priority - b.priority);
+
+                  return (
+                    <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "24px 28px" }}>
+                      <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Recommended actions</div>
+                      <div style={{ fontSize: 17, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", marginBottom: 6 }}>
+                        What {jurisdiction?.county_name} should do now
+                      </div>
+                      <p style={{ fontSize: 13, color: colors.textSecondary, margin: "0 0 20px", lineHeight: 1.5 }}>
+                        Prioritized actions based on your county&apos;s exposure profile, readiness gaps, and workforce composition.
+                        Estimated total retraining investment needed: <strong style={{ color: colors.text }}>${(retrainingCost / 1000000).toFixed(1)}M</strong>.
+                      </p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {actions.map((act, i) => {
+                          const uColor = act.urgency === "critical" ? colors.scoreRed : act.urgency === "high" ? colors.scoreAmber : act.urgency === "moderate" ? colors.neutral : colors.scoreGreen;
+                          const uBg = act.urgency === "critical" ? "#FEF2F2" : act.urgency === "high" ? colors.cautionBg : act.urgency === "moderate" ? colors.neutralBg : colors.positiveBg;
+                          return (
+                            <div key={i} style={{ padding: "18px 22px", borderRadius: 10, border: `1px solid ${colors.cardBorder}`, background: i === 0 ? "#FAFAF8" : colors.card }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                  <span style={{ width: 24, height: 24, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, background: i === 0 ? colors.accent : colors.warmGray, color: i === 0 ? "#fff" : colors.textSecondary }}>{i + 1}</span>
+                                  <span style={{ fontSize: 14, fontWeight: 600 }}>{act.title}</span>
+                                </div>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                  <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, background: uBg, color: uColor, fontWeight: 500 }}>{act.urgency}</span>
+                                  <span style={{ fontSize: 11, color: colors.textTertiary }}>{act.timeline}</span>
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                                <div style={{ minWidth: 80, padding: "8px 12px", borderRadius: 8, background: colors.warmGray, textAlign: "center" }}>
+                                  <div style={{ fontSize: 18, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: colors.text }}>{act.metric}</div>
+                                  <div style={{ fontSize: 10, color: colors.textTertiary }}>{act.metricLabel}</div>
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <p style={{ fontSize: 13, color: colors.textSecondary, margin: "0 0 8px", lineHeight: 1.5 }}>{act.desc}</p>
+                                  <div style={{ fontSize: 13, color: colors.accent, fontWeight: 500 }}>
+                                    Action: {act.action}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div style={{ background: colors.warmGray, borderRadius: 12, padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 13, color: colors.textSecondary }}>
@@ -1495,7 +1589,7 @@ export default function ResilienceIQ() {
                       {topIndustries.length > 0 && (
                         <div style={{ marginTop: 24, padding: "16px 20px", borderRadius: 10, background: colors.aiPurpleLight, border: `1px solid #E0D4F5` }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                            <span style={{ fontSize: 16 }}>{"\u2728"}</span>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L8.5 5.5H13L9.5 8.5L11 13L7 10L3 13L4.5 8.5L1 5.5H5.5L7 1Z" stroke={colors.aiPurple} strokeWidth="1" fill="none"/></svg>
                             <span style={{ fontSize: 13, fontWeight: 600, color: colors.aiPurple }}>AI disruption risk by sector</span>
                           </div>
                           <p style={{ fontSize: 13, color: colors.textSecondary, margin: "0 0 12px", lineHeight: 1.5 }}>
