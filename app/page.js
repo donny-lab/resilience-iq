@@ -753,7 +753,7 @@ export default function ResilienceIQ() {
                       onMouseEnter={e => e.currentTarget.style.background = colors.warmGray}
                       onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                       <span style={{ fontWeight: 500 }}>{r.county_name}</span>
-                      <span style={{ color: colors.textTertiary }}>{r.state_abbr} \u00B7 {r.fips_code}</span>
+                      <span style={{ color: colors.textTertiary }}>{r.state_abbr} {"\u00B7"} {r.fips_code}</span>
                     </div>
                   ))}
                 </div>
@@ -1422,7 +1422,7 @@ export default function ResilienceIQ() {
 
                 <div style={{ background: colors.warmGray, borderRadius: 12, padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 13, color: colors.textSecondary }}>
-                    Sources: Felten et al. AIOE methodology \u00B7 Census ACS 2023 \u00B7 BLS SOC occupation data
+                    Sources: Felten et al. AIOE methodology {"\u00B7"} Census ACS 2022 {"\u00B7"} BLS SOC occupation data
                   </div>
                   <div style={{ fontSize: 12.5, color: colors.aiPurple, fontWeight: 500, padding: "5px 12px", borderRadius: 6, background: colors.aiPurpleLight }}>
                     View AI methodology
