@@ -381,6 +381,42 @@ function useAIStateComparison(stateAbbr) {
 }
 
 // ============================================================
+// QCEW INDUSTRY DATA HOOK (from JSON API route)
+// ============================================================
+function useQCEWData(fips) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!fips) return;
+    setLoading(true);
+    fetch(`/api/qcew?fips=${fips}`)
+      .then(r => r.json())
+      .then(d => setData(d.industries || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [fips]);
+  return { industries: data, loading };
+}
+
+// ============================================================
+// FEDERAL GRANTS HOOK (from JSON API route)
+// ============================================================
+function useFederalGrants(fips) {
+  const [data, setData] = useState({ awards: [], summary: null });
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!fips) return;
+    setLoading(true);
+    fetch(`/api/grants?fips=${fips}`)
+      .then(r => r.json())
+      .then(d => setData(d))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [fips]);
+  return { grants: data, loading };
+}
+
+// ============================================================
 // DESIGN SYSTEM
 // ============================================================
 const colors = {
@@ -616,11 +652,17 @@ export default function ResilienceIQ() {
   const { readiness: aiReadiness, loading: aiReadLoading } = useAIReadiness(fips);
   const { aiStateData } = useAIStateComparison(jurisdiction?.state_abbr);
 
+  // QCEW and grants hooks
+  const { industries: qcewIndustries, loading: qcewLoading } = useQCEWData(fips);
+  const { grants: grantsData, loading: grantsLoading } = useFederalGrants(fips);
+
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "labor", label: "Labor market" },
+    { id: "industry", label: "Industry" },
     { id: "ai", label: "AI impact" },
     { id: "alerts", label: "Alerts" + (warnFilings.length > 0 ? ` (${warnFilings.length})` : "") },
+    { id: "grants", label: "Grants" },
     { id: "compare", label: "Compare" },
   ];
 
@@ -1371,6 +1413,192 @@ export default function ResilienceIQ() {
                   ) : (
                     <div style={{ padding: 24, borderRadius: 10, background: colors.neutralBg, textAlign: "center", fontSize: 14, color: colors.textSecondary }}>
                       No business registration data available for this county yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ==================== INDUSTRY TAB ==================== */}
+            {activeTab === "industry" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
+                  <div style={{ padding: "24px 32px", borderBottom: `1px solid ${colors.cardBorder}` }}>
+                    <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Industry composition</div>
+                    <div style={{ fontSize: 20, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", lineHeight: 1.35, marginBottom: 8 }}>
+                      {qcewIndustries.length > 0
+                        ? `${qcewIndustries[0]?.industry_title} is the largest employer in ${jurisdiction?.county_name}`
+                        : `Industry data for ${jurisdiction?.county_name}`}
+                    </div>
+                    <p style={{ fontSize: 14, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>
+                      BLS Quarterly Census of Employment & Wages (QCEW) data showing private sector employment by industry.
+                      {qcewIndustries.length > 0 && ` ${qcewIndustries.length} industry sectors with ${qcewIndustries.reduce((s,d) => s + d.employment, 0).toLocaleString()} total private sector employees.`}
+                    </p>
+                  </div>
+                  {qcewLoading ? <div style={{ padding: 32 }}><LoadingSkeleton height={300} /></div> : qcewIndustries.length > 0 ? (
+                    <div style={{ padding: "24px 32px" }}>
+                      {/* Summary stats */}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+                        {[
+                          { label: "Total employment", value: qcewIndustries.reduce((s,d) => s + d.employment, 0).toLocaleString() },
+                          { label: "Establishments", value: qcewIndustries.reduce((s,d) => s + d.establishments, 0).toLocaleString() },
+                          { label: "Top sector", value: qcewIndustries[0]?.industry_title?.split(",")[0] || "\u2014" },
+                          { label: "Avg weekly wage", value: `$${Math.round(qcewIndustries.reduce((s,d) => s + d.avg_weekly_wage * d.employment, 0) / Math.max(1, qcewIndustries.reduce((s,d) => s + d.employment, 0))).toLocaleString()}` },
+                        ].map((s, i) => (
+                          <div key={i} style={{ padding: "14px 16px", borderRadius: 10, background: colors.warmGray }}>
+                            <div style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>{s.label}</div>
+                            <div style={{ fontSize: 20, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif" }}>{s.value}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Industry table */}
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ borderBottom: `2px solid ${colors.cardBorder}` }}>
+                              {["Industry", "Employment", "Share", "Establishments", "Avg weekly wage", "Annual salary", "LQ"].map(h => (
+                                <th key={h} style={{ padding: "8px 12px", textAlign: h === "Industry" ? "left" : "right", fontWeight: 500, color: colors.textSecondary, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {qcewIndustries.map((ind, i) => (
+                              <tr key={i} style={{ borderBottom: `1px solid ${colors.warmGray}` }}>
+                                <td style={{ padding: "10px 12px", fontWeight: 500 }}>{ind.industry_title}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: "'Source Serif 4', Georgia, serif", fontVariantNumeric: "tabular-nums" }}>{ind.employment.toLocaleString()}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                                    <div style={{ width: 60, height: 6, background: colors.warmGray, borderRadius: 3 }}>
+                                      <div style={{ height: 6, borderRadius: 3, width: `${Math.min(ind.share, 100)}%`, background: colors.accent }} />
+                                    </div>
+                                    <span style={{ fontVariantNumeric: "tabular-nums", width: 40 }}>{ind.share.toFixed(1)}%</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{ind.establishments.toLocaleString()}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>${ind.avg_weekly_wage.toLocaleString()}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: ind.annual_wages > 60000 ? colors.positive : colors.textSecondary }}>${ind.annual_wages.toLocaleString()}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                  {ind.location_quotient ? (
+                                    <span style={{ padding: "2px 6px", borderRadius: 4, fontSize: 12, background: ind.location_quotient > 1.2 ? colors.positiveBg : ind.location_quotient < 0.8 ? colors.cautionBg : colors.neutralBg, color: ind.location_quotient > 1.2 ? colors.positive : ind.location_quotient < 0.8 ? colors.caution : colors.neutral }}>
+                                      {ind.location_quotient.toFixed(2)}
+                                    </span>
+                                  ) : "\u2014"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* AI exposure by industry cross-reference */}
+                      {topIndustries.length > 0 && (
+                        <div style={{ marginTop: 24, padding: "16px 20px", borderRadius: 10, background: colors.aiPurpleLight, border: `1px solid #E0D4F5` }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                            <span style={{ fontSize: 16 }}>{"\u2728"}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: colors.aiPurple }}>AI disruption risk by sector</span>
+                          </div>
+                          <p style={{ fontSize: 13, color: colors.textSecondary, margin: "0 0 12px", lineHeight: 1.5 }}>
+                            Cross-referencing QCEW employment data with AI exposure scores to identify sectors most at risk of workforce disruption.
+                          </p>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+                            {topIndustries.map((ind, i) => {
+                              const score = (ind.score || 0.5) * 100;
+                              const riskColor = score > 65 ? colors.scoreRed : score > 40 ? colors.scoreAmber : colors.scoreGreen;
+                              const riskLabel = score > 65 ? "High risk" : score > 40 ? "Moderate risk" : "Lower risk";
+                              return (
+                                <div key={i} style={{ padding: "12px 14px", borderRadius: 8, background: colors.card }}>
+                                  <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 4 }}>{ind.title}</div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <div style={{ flex: 1, height: 5, background: "#E0DFDA", borderRadius: 3 }}>
+                                      <div style={{ height: 5, borderRadius: 3, width: `${score}%`, background: riskColor }} />
+                                    </div>
+                                    <span style={{ fontSize: 11, color: riskColor, fontWeight: 500 }}>{riskLabel}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 8, background: colors.warmGray, fontSize: 12, color: colors.textSecondary }}>
+                        Source: BLS Quarterly Census of Employment and Wages, Q3 2023. Private sector only. LQ = Location Quotient (values above 1.0 indicate higher concentration than national average).
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: 32 }}>
+                      <div style={{ padding: 24, borderRadius: 10, background: colors.neutralBg, textAlign: "center", fontSize: 14, color: colors.textSecondary }}>
+                        Industry data is not yet available for {jurisdiction?.county_name}. QCEW data covers major metropolitan and mid-size counties. Check back as we expand coverage.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ==================== GRANTS TAB ==================== */}
+            {activeTab === "grants" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
+                  <div style={{ padding: "24px 32px", borderBottom: `1px solid ${colors.cardBorder}` }}>
+                    <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Federal funding</div>
+                    <div style={{ fontSize: 20, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", lineHeight: 1.35, marginBottom: 8 }}>
+                      {grantsData.summary?.total_awards > 0
+                        ? `$${(grantsData.summary.total_amount / 1000000).toFixed(1)}M in federal grants flowing into ${jurisdiction?.county_name}`
+                        : `Federal grant data for ${jurisdiction?.county_name}`}
+                    </div>
+                    <p style={{ fontSize: 14, color: colors.textSecondary, margin: 0, lineHeight: 1.6 }}>
+                      Federal awards and grants from USAspending.gov for FY2024. Includes economic development, workforce, infrastructure, and research funding.
+                    </p>
+                  </div>
+                  {grantsLoading ? <div style={{ padding: 32 }}><LoadingSkeleton height={300} /></div> : grantsData.awards?.length > 0 ? (
+                    <div style={{ padding: "24px 32px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+                        {[
+                          { label: "Total federal awards", value: grantsData.summary.total_awards.toLocaleString(), sub: "FY2024" },
+                          { label: "Total obligations", value: `$${(grantsData.summary.total_amount / 1000000).toFixed(1)}M`, sub: "federal dollars" },
+                          { label: "Funding agencies", value: grantsData.summary.agencies?.length || 0, sub: grantsData.summary.agencies?.[0] || "" },
+                        ].map((s, i) => (
+                          <div key={i} style={{ padding: "16px 18px", borderRadius: 10, background: colors.warmGray }}>
+                            <div style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>{s.label}</div>
+                            <div style={{ fontSize: 26, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: colors.accent }}>{s.value}</div>
+                            <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>{s.sub}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                          <thead>
+                            <tr style={{ borderBottom: `2px solid ${colors.cardBorder}` }}>
+                              {["Recipient", "Amount", "Agency", "Description"].map(h => (
+                                <th key={h} style={{ padding: "8px 12px", textAlign: h === "Amount" ? "right" : "left", fontWeight: 500, color: colors.textSecondary, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {grantsData.awards.slice(0, 25).map((a, i) => (
+                              <tr key={i} style={{ borderBottom: `1px solid ${colors.warmGray}` }}>
+                                <td style={{ padding: "10px 12px", fontWeight: 500, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.recipient}</td>
+                                <td style={{ padding: "10px 12px", textAlign: "right", fontFamily: "'Source Serif 4', Georgia, serif", fontVariantNumeric: "tabular-nums", color: a.amount > 0 ? colors.positive : colors.caution }}>
+                                  {a.amount > 0 ? "+" : ""}{a.amount >= 1000000 ? `$${(a.amount / 1000000).toFixed(1)}M` : a.amount >= 1000 ? `$${(a.amount / 1000).toFixed(0)}K` : `$${a.amount.toFixed(0)}`}
+                                </td>
+                                <td style={{ padding: "10px 12px", color: colors.textSecondary, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.agency}</td>
+                                <td style={{ padding: "10px 12px", color: colors.textSecondary, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.description || "\u2014"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 8, background: colors.warmGray, fontSize: 12, color: colors.textSecondary }}>
+                        Source: USAspending.gov, FY2024 (Oct 2023 \u2013 Sep 2024). Includes grants, cooperative agreements, and direct payments.
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: 32 }}>
+                      <div style={{ padding: 24, borderRadius: 10, background: colors.neutralBg, textAlign: "center", fontSize: 14, color: colors.textSecondary }}>
+                        Federal grant data is being compiled for {jurisdiction?.county_name}. Coverage currently includes the top 10 metro areas.
+                      </div>
                     </div>
                   )}
                 </div>
