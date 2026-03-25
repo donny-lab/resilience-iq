@@ -23,20 +23,22 @@ export async function GET(request) {
   const categoryBreakdown = [];
 
   for (const [catName, catData] of Object.entries(categories)) {
-    const awards = catData?.awards || [];
-    const catTotal = catData?.total_obligations || catData?.obligation_amount || 0;
+    const topAwards = catData?.top_awards || catData?.awards || [];
+    const catTotal = catData?.total_amount || catData?.total_obligations || 0;
+    const catCount = catData?.count || topAwards.length || 0;
+    const prettyName = catName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     categoryBreakdown.push({
-      name: catName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+      name: prettyName,
       amount: catTotal,
-      count: awards.length,
+      count: catCount,
     });
-    for (const a of awards) {
+    for (const a of topAwards) {
       allAwards.push({
         recipient: a.recipient_name || a.recipient || "Unknown",
-        amount: parseFloat(a.award_amount || a.obligation_amount || a.total_obligation || 0),
+        amount: parseFloat(a.award_amount || a.obligation_amount || a.total_obligation || a.amount || 0),
         description: a.description || a.award_description || "",
-        agency: a.awarding_agency || a.funding_agency || catName.replace(/_/g, " "),
-        category: catName.replace(/_/g, " "),
+        agency: a.awarding_agency || a.funding_agency || prettyName,
+        category: prettyName,
         start_date: a.start_date || null,
       });
     }
