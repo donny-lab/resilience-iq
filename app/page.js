@@ -884,57 +884,63 @@ export default function ResilienceIQ() {
                   </div>
                 </div>
 
-                {/* AI Quick Glance - mini cards on overview */}
-                {(aiExposure || aiReadiness) && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                    {aiExposure && (
-                      <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "18px 22px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}
-                        onClick={() => setActiveTab("ai")}>
-                        <div style={{ width: 44, height: 44, borderRadius: 22, background: colors.aiPurpleLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 1L11 7H17L12 11L14 17L9 13L4 17L6 11L1 7H7L9 1Z" stroke={colors.aiPurple} strokeWidth="1.2" fill="none"/></svg>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 2 }}>AI workforce exposure</div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                            <span style={{ fontSize: 24, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: exposureLevel.color }}>
-                              {(parseFloat(aiExposure.aige_score) * 100).toFixed(0)}
-                            </span>
-                            <span style={{ fontSize: 12, color: colors.textSecondary }}>/ 100 exposure index</span>
+                {/* AI Workforce Risk Summary - front and center on overview */}
+                {aiExposure && aiReadiness && latestLaus && (() => {
+                  const expScore = parseFloat(aiExposure.aige_score);
+                  const readScore = parseFloat(aiReadiness.readiness_score);
+                  const employed = parseInt(latestLaus.employed);
+                  const atRisk = Math.round(employed * expScore * 0.35);
+                  const augmented = Math.round(employed * expScore * 0.45);
+                  const wagesAtRisk = atRisk * 48000;
+                  const gap = readScore - (expScore * 100);
+                  const gapIsPositive = gap >= 0;
+                  const topOcc = topOccupations.slice(0, 3);
+
+                  return (
+                    <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, overflow: "hidden", cursor: "pointer" }}
+                      onClick={() => setActiveTab("ai")}>
+                      <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${colors.cardBorder}` }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: 4, background: gapIsPositive ? colors.scoreGreen : colors.scoreRed }} />
+                            <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em" }}>AI Workforce Risk</span>
                           </div>
-                          <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 4, background: exposureLevel.bg, color: exposureLevel.color, fontWeight: 500 }}>
-                            {exposureLevel.label} exposure {"\u00B7"} P{parseFloat(aiExposure.aige_percentile).toFixed(0)}
-                          </span>
+                          <span style={{ fontSize: 11, color: colors.textTertiary }}>Felten AIOE + Census ACS</span>
                         </div>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                          <path d="M6 4L10 8L6 12" stroke={colors.textTertiary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
+                        <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", lineHeight: 1.35, color: colors.text }}>
+                          {atRisk.toLocaleString()} workers face AI task displacement, {gapIsPositive ? "but the county is better prepared than exposed" : "and the county has a readiness gap to close"}
+                        </div>
                       </div>
-                    )}
-                    {aiReadiness && (
-                      <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "18px 22px", display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}
-                        onClick={() => setActiveTab("ai")}>
-                        <div style={{ width: 44, height: 44, borderRadius: 22, background: colors.aiBlueLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="7" stroke={colors.aiBlue} strokeWidth="1.2"/><circle cx="9" cy="9" r="4" stroke={colors.aiBlue} strokeWidth="1.2"/><circle cx="9" cy="9" r="1.5" fill={colors.aiBlue}/></svg>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 2 }}>AI readiness</div>
-                          <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                            <span style={{ fontSize: 24, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: getTierStyle(aiReadiness.readiness_tier).color }}>
-                              {parseFloat(aiReadiness.readiness_score).toFixed(0)}
-                            </span>
-                            <span style={{ fontSize: 12, color: colors.textSecondary }}>/ 100 readiness score</span>
+                      <div style={{ padding: "16px 24px", display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0 }}>
+                        {[
+                          { label: "At risk", value: atRisk.toLocaleString(), color: colors.scoreRed },
+                          { label: "Augmented", value: augmented.toLocaleString(), color: colors.scoreAmber },
+                          { label: "Wages at risk", value: `$${(wagesAtRisk / 1000000).toFixed(0)}M`, color: colors.scoreRed },
+                          { label: "Readiness gap", value: `${gapIsPositive ? "+" : ""}${gap.toFixed(0)}`, color: gapIsPositive ? colors.scoreGreen : colors.scoreRed },
+                          { label: "Readiness tier", value: aiReadiness.readiness_tier, color: getTierStyle(aiReadiness.readiness_tier).color },
+                        ].map((s, i) => (
+                          <div key={i} style={{ padding: "0 12px", borderLeft: i > 0 ? `1px solid ${colors.cardBorder}` : "none", display: "flex", flexDirection: "column", gap: 2 }}>
+                            <span style={{ fontSize: 10.5, color: colors.textTertiary, textTransform: "uppercase" }}>{s.label}</span>
+                            <span style={{ fontSize: 20, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: s.color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>{s.value}</span>
                           </div>
-                          <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 4, background: getTierStyle(aiReadiness.readiness_tier).bg, color: getTierStyle(aiReadiness.readiness_tier).color, fontWeight: 500 }}>
-                            {aiReadiness.readiness_tier} tier
-                          </span>
-                        </div>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                          <path d="M6 4L10 8L6 12" stroke={colors.textTertiary} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                )}
+                      {topOcc.length > 0 && (
+                        <div style={{ padding: "10px 24px 16px", borderTop: `1px solid ${colors.warmGray}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <div style={{ fontSize: 12, color: colors.textSecondary }}>
+                            Most exposed: {topOcc.map(o => o.title || o.occupation || "").join(", ")}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ fontSize: 12, color: colors.aiPurple, fontWeight: 500 }}>Full AI analysis</span>
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                              <path d="M4 3L8 6L4 9" stroke={colors.aiPurple} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Metric cards */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
