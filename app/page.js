@@ -91,17 +91,49 @@ function usePeerScores(fips, currentScore) {
         setRank((higherCount || 0) + 1);
         setTotal(totalCount || 0);
 
-        const lo = Math.max(0, currentScore - 8);
-        const hi = Math.min(100, currentScore + 8);
-        const { data: scores } = await supabase
+        // Get 4 counties above and 4 below, ensuring score diversity
+        const { data: above } = await supabase
           .from("resilience_scores")
           .select("fips_code,overall_score,trend")
-          .gte("overall_score", lo)
-          .lte("overall_score", hi)
-          .order("overall_score", { ascending: false })
-          .limit(50);
+          .gt("overall_score", currentScore)
+          .order("overall_score", { ascending: true })
+          .limit(20);
 
-        const fipsList = (scores || []).map((s) => s.fips_code);
+        const { data: below } = await supabase
+          .from("resilience_scores")
+          .select("fips_code,overall_score,trend")
+          .lte("overall_score", currentScore)
+          .neq("fips_code", fips)
+          .order("overall_score", { ascending: false })
+          .limit(20);
+
+        const { data: self } = await supabase
+          .from("resilience_scores")
+          .select("fips_code,overall_score,trend")
+          .eq("fips_code", fips)
+          .limit(1);
+
+        // Deduplicate and pick diverse set (skip counties with same rounded score)
+        const pickDiverse = (arr, count) => {
+          const picked = [];
+          const seenScores = new Set();
+          for (const s of (arr || [])) {
+            const rounded = Math.round(parseFloat(s.overall_score));
+            if (picked.length < count) {
+              if (!seenScores.has(rounded) || picked.length < Math.ceil(count / 2)) {
+                picked.push(s);
+                seenScores.add(rounded);
+              }
+            }
+          }
+          return picked;
+        };
+
+        const abovePeers = pickDiverse(above, 4);
+        const belowPeers = pickDiverse(below, 3);
+        const allPeers = [...abovePeers.reverse(), ...(self || []), ...belowPeers];
+
+        const fipsList = allPeers.map((s) => s.fips_code);
         const { data: jurisdictions } = await supabase
           .from("jurisdictions")
           .select("fips_code,county_name,state_abbr")
@@ -110,17 +142,16 @@ function usePeerScores(fips, currentScore) {
         const nameMap = {};
         (jurisdictions || []).forEach((j) => { nameMap[j.fips_code] = j; });
 
-        const sorted = (scores || []).sort((a, b) => parseFloat(b.overall_score) - parseFloat(a.overall_score));
-        const currentIdx = sorted.findIndex((s) => s.fips_code === fips);
-        const startIdx = Math.max(0, currentIdx - 3);
-        const peers = sorted.slice(startIdx, startIdx + 8).map((s) => ({
-          fips: s.fips_code,
-          name: nameMap[s.fips_code]
-            ? `${nameMap[s.fips_code].county_name}, ${nameMap[s.fips_code].state_abbr}`
-            : s.fips_code,
-          score: parseFloat(s.overall_score),
-          isCurrent: s.fips_code === fips,
-        }));
+        const peers = allPeers
+          .sort((a, b) => parseFloat(b.overall_score) - parseFloat(a.overall_score))
+          .map((s) => ({
+            fips: s.fips_code,
+            name: nameMap[s.fips_code]
+              ? `${nameMap[s.fips_code].county_name}, ${nameMap[s.fips_code].state_abbr}`
+              : s.fips_code,
+            score: parseFloat(s.overall_score),
+            isCurrent: s.fips_code === fips,
+          }));
         setData(peers);
       } catch (e) {
         console.error(e);
