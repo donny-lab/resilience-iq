@@ -98,7 +98,7 @@ function usePeerScores(fips, currentScore) {
           .select("fips_code,overall_score,trend")
           .gt("overall_score", currentScore)
           .order("overall_score", { ascending: true })
-          .limit(20);
+          .limit(200);
 
         const { data: below } = await supabase
           .from("resilience_scores")
@@ -106,7 +106,7 @@ function usePeerScores(fips, currentScore) {
           .lte("overall_score", currentScore)
           .neq("fips_code", fips)
           .order("overall_score", { ascending: false })
-          .limit(20);
+          .limit(200);
 
         const { data: self } = await supabase
           .from("resilience_scores")
