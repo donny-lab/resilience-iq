@@ -925,7 +925,7 @@ export default function ResilienceIQ() {
                   const wagesAtRisk = atRisk * 48000;
                   const gap = readScore - (expScore * 100);
                   const gapIsPositive = gap >= 0;
-                  const topOcc = topOccupations.slice(0, 3);
+                  const topOcc = topOccupations.filter(o => (o.exposure_score || o.score || 0) >= 0.55).slice(0, 3);
 
                   return (
                     <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, overflow: "hidden", cursor: "pointer" }}
@@ -1076,7 +1076,7 @@ export default function ResilienceIQ() {
 
                 <div style={{ background: colors.warmGray, borderRadius: 12, padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 13, color: colors.textSecondary }}>
-                    Data: BLS LAUS (monthly) \u00B7 Algorithm v2 \u00B7 {lausData.length} months loaded
+                    Data: BLS LAUS monthly (through {latestLaus ? `${MONTH_ABBR[latestLaus.month]} ${latestLaus.year}` : "..."}) {"\u00B7"} Census ACS 2023 {"\u00B7"} QCEW Q1 2025
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <div style={{ fontSize: 12.5, color: colors.accent, fontWeight: 500, padding: "5px 12px", borderRadius: 6, background: colors.accentLight }}>View methodology</div>
@@ -1237,7 +1237,7 @@ export default function ResilienceIQ() {
                     </div>
                     {aiExpLoading ? <LoadingSkeleton height={200} /> : topOccupations.length > 0 ? (
                       <HorizontalBarChart
-                        items={topOccupations.slice(0, 7).map(o => ({
+                        items={topOccupations.filter(o => (o.exposure_score || o.score || 0) >= 0.55).slice(0, 7).map(o => ({
                           label: o.title || o.occupation || o.name || "Unknown",
                           value: (o.exposure_score || o.score || 0.5) * 100,
                           displayValue: `${((o.exposure_score || o.score || 0.5) * 100).toFixed(0)}`,
@@ -1252,7 +1252,7 @@ export default function ResilienceIQ() {
                     )}
                     {topOccupations.length > 0 && (
                       <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 8, background: colors.aiPurpleLight, fontSize: 13, color: colors.text, lineHeight: 1.5 }}>
-                        <strong>What this means:</strong> These occupations in {jurisdiction?.county_name} are most likely to see task-level changes from generative AI. High exposure can mean augmentation (AI assists workers) or displacement (AI replaces tasks).
+                        <strong>What this means:</strong> These are the occupations in {jurisdiction?.county_name} with the highest share of tasks that can be performed or augmented by generative AI, based on the Felten et al. AIOE methodology. Only occupations scoring above 55/100 on the AI exposure index are shown.
                       </div>
                     )}
                   </div>
@@ -1459,7 +1459,7 @@ export default function ResilienceIQ() {
 
                 <div style={{ background: colors.warmGray, borderRadius: 12, padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 13, color: colors.textSecondary }}>
-                    Sources: Felten et al. AIOE methodology {"\u00B7"} Census ACS 2022 {"\u00B7"} BLS SOC occupation data
+                    Sources: Felten et al. AIOE methodology {"\u00B7"} Census ACS 2023 5-Year {"\u00B7"} BLS QCEW Q1 2025 {"\u00B7"} BLS LAUS monthly
                   </div>
                   <div style={{ fontSize: 12.5, color: colors.aiPurple, fontWeight: 500, padding: "5px 12px", borderRadius: 6, background: colors.aiPurpleLight }}>
                     View AI methodology
