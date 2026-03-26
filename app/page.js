@@ -114,24 +114,22 @@ function usePeerScores(fips, currentScore) {
           .eq("fips_code", fips)
           .limit(1);
 
-        // Deduplicate and pick diverse set (skip counties with same rounded score)
+        // Pick peers with strictly different rounded scores for visual differentiation
         const pickDiverse = (arr, count) => {
           const picked = [];
           const seenScores = new Set();
           for (const s of (arr || [])) {
             const rounded = Math.round(parseFloat(s.overall_score));
-            if (picked.length < count) {
-              if (!seenScores.has(rounded) || picked.length < Math.ceil(count / 2)) {
-                picked.push(s);
-                seenScores.add(rounded);
-              }
+            if (!seenScores.has(rounded) && picked.length < count) {
+              picked.push(s);
+              seenScores.add(rounded);
             }
           }
           return picked;
         };
 
         const abovePeers = pickDiverse(above, 4);
-        const belowPeers = pickDiverse(below, 3);
+        const belowPeers = pickDiverse(below, 4);
         const allPeers = [...abovePeers.reverse(), ...(self || []), ...belowPeers];
 
         const fipsList = allPeers.map((s) => s.fips_code);
@@ -762,12 +760,12 @@ export default function ResilienceIQ() {
   ];
 
   const scoreComponents = resilienceScore ? [
-    { label: "Unemployment vs national", score: parseFloat(resilienceScore.unemployment_score), weight: 30 },
+    { label: "Unemployment vs national", score: parseFloat(resilienceScore.unemployment_score), weight: 25 },
+    { label: "WARN Act activity", score: parseFloat(resilienceScore.warn_activity_score), weight: 15 },
+    { label: "AI readiness (Census ACS)", score: parseFloat(resilienceScore.job_posting_score), weight: 15 },
     { label: "Unemployment trend (3mo)", score: parseFloat(resilienceScore.unemployment_trend_score), weight: 15 },
-    { label: "Labor force size", score: parseFloat(resilienceScore.labor_force_score), weight: 10 },
-    { label: "Labor force trend", score: parseFloat(resilienceScore.job_posting_score), weight: 10 },
-    { label: "Business formation", score: parseFloat(resilienceScore.business_formation_score), weight: 15 },
-    { label: "WARN activity", score: parseFloat(resilienceScore.warn_activity_score), weight: 20 },
+    { label: "Labor force growth", score: parseFloat(resilienceScore.labor_force_score), weight: 10 },
+    { label: "AI resilience gap", score: parseFloat(resilienceScore.business_formation_score), weight: 10 },
   ] : [];
 
   // AI exposure derived data
@@ -938,11 +936,9 @@ export default function ResilienceIQ() {
                     </div>
                     <div style={{ fontSize: 18, fontWeight: 600, color: colors.text, lineHeight: 1.35, fontFamily: "'Source Serif 4', Georgia, serif", marginBottom: 12 }}>
                       {briefing ? briefing.headline
-                        : latestLaus && threeMonthAgo
-                        ? parseFloat(latestLaus.unemployment_rate) < parseFloat(threeMonthAgo.unemployment_rate)
-                          ? `Unemployment is trending down in ${jurisdiction?.county_name}`
-                          : `Unemployment is holding steady in ${jurisdiction?.county_name}`
-                        : `Economic overview for ${jurisdiction?.county_name}`}
+                        : aiExposure && latestLaus
+                        ? `${workersAtRiskTotal.toLocaleString()} workers in ${jurisdiction?.county_name} face AI-driven task displacement`
+                        : `AI workforce impact assessment for ${jurisdiction?.county_name}`}
                     </div>
                     <div style={{ fontSize: 14, lineHeight: 1.75, color: colors.textSecondary }}>
                       {briefing ? (
@@ -955,7 +951,7 @@ export default function ResilienceIQ() {
                               <div style={{ fontSize: 12, fontWeight: 600, color: colors.accent, marginBottom: 6, textTransform: "uppercase" }}>Key insights</div>
                               {briefing.key_insights.map((insight, i) => (
                                 <div key={i} style={{ fontSize: 13, color: colors.text, padding: "3px 0", display: "flex", gap: 8 }}>
-                                  <span style={{ color: colors.accent }}>\u2022</span> {insight}
+                                  <span style={{ color: colors.accent }}>{"\u2022"}</span> {insight}
                                 </div>
                               ))}
                             </div>
@@ -964,14 +960,14 @@ export default function ResilienceIQ() {
                       ) : (
                         <>
                           <p style={{ margin: 0 }}>
-                            {jurisdiction?.county_name}&apos;s unemployment rate stands at {latestLaus ? parseFloat(latestLaus.unemployment_rate).toFixed(1) : "\u2014"}%
-                            {nationalAvg ? `, ${parseFloat(latestLaus?.unemployment_rate) < nationalAvg ? "below" : "above"} the national average of ${nationalAvg}%` : ""}.
-                            The labor force is {lfNow?.toLocaleString()} with {latestLaus ? parseInt(latestLaus.employed).toLocaleString() : "\u2014"} employed.
-                            {lfChange > 0 ? ` The labor force has grown by ${lfChange.toLocaleString()} over the past ${lausData.length} months.` : ""}
+                            {jurisdiction?.county_name} has a labor force of {lfNow?.toLocaleString()} with unemployment at {latestLaus ? parseFloat(latestLaus.unemployment_rate).toFixed(1) : "\u2014"}%
+                            {nationalAvg ? ` (${parseFloat(latestLaus?.unemployment_rate) < nationalAvg ? "below" : "above"} the ${nationalAvg}% national average)` : ""}.
+                            {aiExposure ? ` Based on the county's industry mix, approximately ${(parseFloat(aiExposure.aige_score) * 100).toFixed(0)}% of occupations have meaningful AI exposure.` : ""}
+                            {industries.length > 0 ? ` The highest-risk sectors are ${criticalIndustries.slice(0, 2).map(i => i.industry_title).join(" and ") || "being analyzed"}, where AI automation could reshape ${industryTotalAtRisk.toLocaleString()} positions.` : ""}
                           </p>
                           <p style={{ margin: "12px 0 0" }}>
-                            The Resilience Score of {score !== null ? Math.round(score) : "\u2014"}/100 reflects the county&apos;s overall economic health
-                            relative to peer jurisdictions. {resilienceScore?.trend === "new" ? "This is the first score calculation. Future updates will show trend direction." : ""}
+                            {aiReadiness ? `The county's AI Readiness score of ${parseFloat(aiReadiness.readiness_score).toFixed(0)}/100 (${aiReadiness.readiness_tier} tier) reflects ${parseFloat(aiReadiness.broadband_pct).toFixed(0)}% broadband access and ${parseFloat(aiReadiness.bachelors_plus_pct).toFixed(0)}% bachelor's-degree attainment. ` : ""}
+                            The estimated workforce retraining investment to prepare for AI transition is <strong style={{ color: colors.text }}>${(skillsGap.totalCost / 1000000).toFixed(0)}M</strong> across three tiers of training.
                           </p>
                         </>
                       )}
@@ -1746,44 +1742,20 @@ export default function ResilienceIQ() {
                     </div>
                   ) : (
                     <div style={{ padding: 24, borderRadius: 10, background: colors.positiveBg, textAlign: "center", fontSize: 14, color: colors.positive }}>
-                      No active WARN filings \u2014 a positive signal for employment stability.
+                      No WARN Act filings on record. {jurisdiction?.state_abbr === "CA" ? "No layoff notices filed in this county." : `WARN data is currently available for California counties. ${jurisdiction?.state_abbr} coverage coming soon.`}
                     </div>
                   )}
                 </div>
-                <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "24px 28px" }}>
-                  <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Business activity</div>
-                  <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>
-                    {bizData.summary?.length > 0 ? "Net business formation is " + (bizData.summary[bizData.summary.length - 1]?.net >= 0 ? "positive" : "declining") : "Business registration data"}
-                  </div>
-                  {bizData.summary?.length > 0 ? (
-                    <>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-                        {[
-                          { label: "New registrations", value: bizData.summary.reduce((s, m) => s + m.new, 0), good: true },
-                          { label: "Dissolutions", value: bizData.summary.reduce((s, m) => s + m.dissolved, 0), good: false },
-                          { label: "Net formation", value: bizData.summary.reduce((s, m) => s + m.net, 0), good: bizData.summary.reduce((s, m) => s + m.net, 0) > 0 },
-                        ].map((s, i) => (
-                          <div key={i} style={{ padding: "14px 16px", borderRadius: 10, background: colors.warmGray }}>
-                            <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 4 }}>{s.label}</div>
-                            <div style={{ fontSize: 24, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: i === 2 ? (s.good ? colors.positive : colors.caution) : colors.text }}>{i === 2 && s.value > 0 ? "+" : ""}{s.value.toLocaleString()}</div>
-                          </div>
-                        ))}
-                      </div>
-                      <AreaChart data={bizData.summary.map(m => ({ month: m.month.slice(5), net: m.net, newBiz: m.new }))} xKey="month" yKeys={["net"]}
-                        colors={[{ line: colors.chartGreen, area: colors.chartGreenArea }]} height={180} />
-                      <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 8 }}>Monthly net business formation (new registrations minus dissolutions)</div>
-                    </>
-                  ) : (
-                    <div style={{ padding: 24, borderRadius: 10, background: colors.neutralBg, textAlign: "center", fontSize: 14, color: colors.textSecondary }}>
-                      No business registration data available for this county yet.
-                    </div>
-                  )}
+                {/* WARN data source note */}
+                <div style={{ background: colors.warmGray, borderRadius: 12, padding: "14px 20px", fontSize: 12, color: colors.textSecondary, lineHeight: 1.5 }}>
+                  WARN Act data sourced from state Department of Labor websites. Currently covering: <strong>California</strong> (EDD, updated weekly).
+                  Additional states are added as their data becomes available in machine-readable format. Source: <a href="https://edd.ca.gov/en/Jobs_and_Training/Layoff_Services_WARN/" target="_blank" rel="noopener" style={{ color: colors.accent }}>edd.ca.gov</a>
                 </div>
               </div>
             )}
 
-            {/* ==================== INDUSTRY TAB ==================== */}
-            {activeTab === "industry" && (
+            {/* ==================== LEGACY INDUSTRY TAB (hidden, superseded by industry-ai) ==================== */}
+            {activeTab === "industry-DISABLED" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
                   <div style={{ padding: "24px 32px", borderBottom: `1px solid ${colors.cardBorder}` }}>
@@ -1900,8 +1872,8 @@ export default function ResilienceIQ() {
               </div>
             )}
 
-            {/* ==================== GRANTS TAB ==================== */}
-            {activeTab === "grants" && (
+            {/* ==================== LEGACY GRANTS TAB (hidden) ==================== */}
+            {activeTab === "grants-DISABLED" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
                   <div style={{ padding: "24px 32px", borderBottom: `1px solid ${colors.cardBorder}` }}>
