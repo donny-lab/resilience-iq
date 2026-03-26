@@ -896,90 +896,11 @@ export default function ResilienceIQ() {
             {/* ==================== OVERVIEW TAB ==================== */}
             {activeTab === "overview" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                {/* Hero */}
-                <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
-                  <div style={{ padding: "28px 32px 24px", display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 28, alignItems: "center", borderBottom: `1px solid ${colors.cardBorder}` }}>
-                    {score !== null && <ScoreRing score={Math.round(score)} trend={resilienceScore?.trend || "new"} trendDelta={resilienceScore?.trend_delta} />}
-                    <div style={{ display: "flex", gap: 1, height: 68 }}>
-                      {[
-                        { label: "Unemployment", value: latestLaus ? `${parseFloat(latestLaus.unemployment_rate).toFixed(1)}%` : "\u2014", sub: nationalAvg ? `vs ${nationalAvg}% national` : "", good: latestLaus && nationalAvg ? parseFloat(latestLaus.unemployment_rate) < nationalAvg : true },
-                        { label: "Labor force", value: lfNow ? lfNow.toLocaleString() : "\u2014", sub: lfChange !== 0 ? `${lfChange > 0 ? "+" : ""}${lfChange.toLocaleString()} over ${lausData.length}mo` : "", good: lfChange >= 0 },
-                        { label: "Employed", value: latestLaus ? parseInt(latestLaus.employed).toLocaleString() : "\u2014", sub: latestLaus ? `${((latestLaus.employed / latestLaus.labor_force) * 100).toFixed(1)}% participation` : "", good: true },
-                        { label: "Unemployed", value: latestLaus ? parseInt(latestLaus.unemployed).toLocaleString() : "\u2014", sub: threeMonthAgo ? `${parseInt(latestLaus.unemployed) < parseInt(threeMonthAgo.unemployed) ? "\u25BC" : "\u25B2"} from 3mo ago` : "", good: threeMonthAgo ? parseInt(latestLaus.unemployed) <= parseInt(threeMonthAgo.unemployed) : true },
-                      ].map((stat, i) => (
-                        <div key={i} style={{ flex: 1, padding: "0 18px", borderLeft: i > 0 ? `1px solid ${colors.cardBorder}` : "none", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                          <span style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 5 }}>{stat.label}</span>
-                          <span style={{ fontSize: 22, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{stat.value}</span>
-                          <span style={{ fontSize: 12.5, color: stat.good ? colors.positive : colors.caution, fontWeight: 500, marginTop: 4 }}>{stat.sub}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, padding: "8px 20px", borderLeft: `1px solid ${colors.cardBorder}` }}>
-                      <span style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase" }}>Peer rank</span>
-                      <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                        <span style={{ fontSize: 28, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: colors.accent }}>
-                          {peerRank || "\u2014"}
-                        </span>
-                        <span style={{ fontSize: 13, color: colors.textSecondary }}>of {peerTotal.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Briefing */}
-                  <div style={{ padding: "22px 32px 28px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <circle cx="7" cy="7" r="6" stroke={colors.accent} strokeWidth="1.2"/><circle cx="7" cy="7" r="2" fill={colors.accent}/>
-                        <path d="M7 1V3M7 11V13M1 7H3M11 7H13" stroke={colors.accent} strokeWidth="0.8" strokeLinecap="round"/>
-                      </svg>
-                      <span style={{ fontSize: 13, fontWeight: 500, color: colors.accent }}>{briefing ? "AI economic briefing" : "Economic briefing"}</span>
-                      {briefing && <span style={{ fontSize: 11, color: colors.textTertiary, marginLeft: "auto" }}>Powered by Claude</span>}
-                    </div>
-                    <div style={{ fontSize: 18, fontWeight: 600, color: colors.text, lineHeight: 1.35, fontFamily: "'Source Serif 4', Georgia, serif", marginBottom: 12 }}>
-                      {briefing ? briefing.headline
-                        : aiExposure && latestLaus
-                        ? `${workersAtRiskTotal.toLocaleString()} workers in ${jurisdiction?.county_name} face AI-driven task displacement`
-                        : `AI workforce impact assessment for ${jurisdiction?.county_name}`}
-                    </div>
-                    <div style={{ fontSize: 14, lineHeight: 1.75, color: colors.textSecondary }}>
-                      {briefing ? (
-                        <>
-                          {briefing.body.split('\n').filter(p => p.trim()).map((p, i) => (
-                            <p key={i} style={{ margin: i > 0 ? "12px 0 0" : 0 }}>{p}</p>
-                          ))}
-                          {briefing.key_insights?.length > 0 && (
-                            <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 8, background: colors.accentLight }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: colors.accent, marginBottom: 6, textTransform: "uppercase" }}>Key insights</div>
-                              {briefing.key_insights.map((insight, i) => (
-                                <div key={i} style={{ fontSize: 13, color: colors.text, padding: "3px 0", display: "flex", gap: 8 }}>
-                                  <span style={{ color: colors.accent }}>{"\u2022"}</span> {insight}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <p style={{ margin: 0 }}>
-                            {jurisdiction?.county_name} has a labor force of {lfNow?.toLocaleString()} with unemployment at {latestLaus ? parseFloat(latestLaus.unemployment_rate).toFixed(1) : "\u2014"}%
-                            {nationalAvg ? ` (${parseFloat(latestLaus?.unemployment_rate) < nationalAvg ? "below" : "above"} the ${nationalAvg}% national average)` : ""}.
-                            {aiExposure ? ` Based on the county's industry mix, approximately ${(parseFloat(aiExposure.aige_score) * 100).toFixed(0)}% of occupations have meaningful AI exposure.` : ""}
-                            {industries.length > 0 ? ` The highest-risk sectors are ${criticalIndustries.slice(0, 2).map(i => i.industry_title).join(" and ") || "being analyzed"}, where AI automation could reshape ${industryTotalAtRisk.toLocaleString()} positions.` : ""}
-                          </p>
-                          <p style={{ margin: "12px 0 0" }}>
-                            {aiReadiness ? `The county's AI Readiness score of ${parseFloat(aiReadiness.readiness_score).toFixed(0)}/100 (${aiReadiness.readiness_tier} tier) reflects ${parseFloat(aiReadiness.broadband_pct).toFixed(0)}% broadband access and ${parseFloat(aiReadiness.bachelors_plus_pct).toFixed(0)}% bachelor's-degree attainment. ` : ""}
-                            The estimated workforce retraining investment to prepare for AI transition is <strong style={{ color: colors.text }}>${(skillsGap.totalCost / 1000000).toFixed(0)}M</strong> across three tiers of training.
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* AI Workforce Risk Summary - front and center on overview */}
-                {aiExposure && aiReadiness && latestLaus && (() => {
-                  const expScore = parseFloat(aiExposure.aige_score);
-                  const readScore = parseFloat(aiReadiness.readiness_score);
-                  const employed = parseInt(latestLaus.employed);
+                {/* NEW HERO: AI Workforce Impact Assessment */}
+                {(() => {
+                  const expScore = aiExposure ? parseFloat(aiExposure.aige_score) : 0;
+                  const readScore = aiReadiness ? parseFloat(aiReadiness.readiness_score) : 0;
+                  const employed = latestLaus ? parseInt(latestLaus.employed) : 0;
                   const atRisk = Math.round(employed * expScore * 0.35);
                   const augmented = Math.round(employed * expScore * 0.45);
                   const wagesAtRisk = atRisk * 48000;
@@ -988,76 +909,75 @@ export default function ResilienceIQ() {
                   const topOcc = topOccupations.filter(o => (o.exposure_score || o.score || 0) >= 0.55).slice(0, 3);
 
                   return (
-                    <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, overflow: "hidden", cursor: "pointer" }}
-                      onClick={() => setActiveTab("ai")}>
-                      <div style={{ padding: "20px 24px 16px", borderBottom: `1px solid ${colors.cardBorder}` }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: 4, background: gapIsPositive ? colors.scoreGreen : colors.scoreRed }} />
-                            <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em" }}>AI Workforce Risk</span>
-                          </div>
-                          <span style={{ fontSize: 11, color: colors.textTertiary }}>Felten AIOE + Census ACS</span>
+                    <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
+                      {/* Hero headline */}
+                      <div style={{ padding: "28px 32px 20px", borderBottom: `1px solid ${colors.cardBorder}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 4, background: gapIsPositive ? colors.scoreGreen : colors.scoreRed }} />
+                          <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em" }}>AI Workforce Impact Assessment</span>
+                          <span style={{ fontSize: 11, color: colors.textTertiary, marginLeft: "auto" }}>BLS LAUS + QCEW Q1 2025 + Felten AIOE + Census ACS 2023</span>
                         </div>
-                        <div style={{ fontSize: 16, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", lineHeight: 1.35, color: colors.text }}>
-                          {atRisk.toLocaleString()} workers face AI task displacement, {gapIsPositive ? "but the county is better prepared than exposed" : "and the county has a readiness gap to close"}
+                        <div style={{ fontSize: 24, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", lineHeight: 1.3, color: colors.text, marginBottom: 12 }}>
+                          {atRisk > 0 ? `${atRisk.toLocaleString()} workers in ${jurisdiction?.county_name} face AI-driven task displacement` : `AI workforce impact assessment for ${jurisdiction?.county_name}`}
                         </div>
+                        <p style={{ fontSize: 14.5, lineHeight: 1.7, color: colors.textSecondary, margin: 0 }}>
+                          {jurisdiction?.county_name} has a labor force of {lfNow?.toLocaleString()} with unemployment at {latestLaus ? parseFloat(latestLaus.unemployment_rate).toFixed(1) : "\u2014"}%
+                          {nationalAvg ? ` (${parseFloat(latestLaus?.unemployment_rate) < nationalAvg ? "below" : "above"} the ${nationalAvg}% national average)` : ""}.
+                          {expScore > 0 ? ` Approximately ${(expScore * 100).toFixed(0)}% of occupations have meaningful AI exposure.` : ""}
+                          {industries.length > 0 && criticalIndustries.length > 0 ? ` The highest-risk sectors are ${criticalIndustries.slice(0, 2).map(ind => ind.industry_title).join(" and ")}, where AI could reshape ${industryTotalAtRisk.toLocaleString()} positions.` : ""}
+                          {` Estimated retraining investment: `}<strong style={{ color: colors.text }}>${(skillsGap.totalCost / 1000000).toFixed(0)}M</strong>.
+                        </p>
                       </div>
-                      <div style={{ padding: "16px 24px", display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 0 }}>
+
+                      {/* Key metrics row */}
+                      <div style={{ padding: "20px 32px", display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 0, borderBottom: `1px solid ${colors.cardBorder}` }}>
                         {[
-                          { label: "At risk", value: atRisk.toLocaleString(), color: colors.scoreRed },
-                          { label: "Augmented", value: augmented.toLocaleString(), color: colors.scoreAmber },
-                          { label: "Wages at risk", value: `$${(wagesAtRisk / 1000000).toFixed(0)}M`, color: colors.scoreRed },
-                          { label: "Readiness gap", value: `${gapIsPositive ? "+" : ""}${gap.toFixed(0)}`, color: gapIsPositive ? colors.scoreGreen : colors.scoreRed },
-                          { label: "Readiness tier", value: aiReadiness.readiness_tier, color: getTierStyle(aiReadiness.readiness_tier).color },
+                          { label: "Workers at risk", value: atRisk.toLocaleString(), color: colors.scoreRed, sub: "potential displacement" },
+                          { label: "Workers augmented", value: augmented.toLocaleString(), color: colors.scoreAmber, sub: "AI-assisted roles" },
+                          { label: "Wages at risk", value: `$${(wagesAtRisk / 1000000).toFixed(0)}M`, color: colors.scoreRed, sub: "annual impact" },
+                          { label: "AI readiness", value: `${readScore.toFixed(0)}`, color: getTierStyle(aiReadiness?.readiness_tier).color, sub: aiReadiness?.readiness_tier || "" },
+                          { label: "Readiness gap", value: `${gapIsPositive ? "+" : ""}${gap.toFixed(0)}`, color: gapIsPositive ? colors.scoreGreen : colors.scoreRed, sub: gapIsPositive ? "net prepared" : "underprepared" },
+                          { label: "Retraining cost", value: `$${(skillsGap.totalCost / 1000000).toFixed(0)}M`, color: colors.text, sub: "3-tier estimate" },
                         ].map((s, i) => (
-                          <div key={i} style={{ padding: "0 12px", borderLeft: i > 0 ? `1px solid ${colors.cardBorder}` : "none", display: "flex", flexDirection: "column", gap: 2 }}>
-                            <span style={{ fontSize: 10.5, color: colors.textTertiary, textTransform: "uppercase" }}>{s.label}</span>
-                            <span style={{ fontSize: 20, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: s.color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>{s.value}</span>
+                          <div key={i} style={{ padding: "0 14px", borderLeft: i > 0 ? `1px solid ${colors.cardBorder}` : "none", display: "flex", flexDirection: "column", gap: 2 }}>
+                            <span style={{ fontSize: 10, color: colors.textTertiary, textTransform: "uppercase", letterSpacing: "0.03em" }}>{s.label}</span>
+                            <span style={{ fontSize: 22, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: s.color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>{s.value}</span>
+                            <span style={{ fontSize: 10.5, color: colors.textSecondary }}>{s.sub}</span>
                           </div>
                         ))}
                       </div>
-                      {topOcc.length > 0 && (
-                        <div style={{ padding: "10px 24px 16px", borderTop: `1px solid ${colors.warmGray}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <div style={{ fontSize: 12, color: colors.textSecondary }}>
-                            Most exposed: {topOcc.map(o => o.title || o.occupation || "").join(", ")}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <span style={{ fontSize: 12, color: colors.aiPurple, fontWeight: 500 }}>Full AI analysis</span>
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                              <path d="M4 3L8 6L4 9" stroke={colors.aiPurple} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          </div>
+
+                      {/* Quick links row */}
+                      <div style={{ padding: "14px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ fontSize: 12, color: colors.textSecondary }}>
+                          {topOcc.length > 0 ? `Most exposed: ${topOcc.map(o => o.title || "").join(", ")}` : ""}
                         </div>
-                      )}
+                        <div style={{ display: "flex", gap: 16 }}>
+                          <span style={{ fontSize: 12, color: colors.aiPurple, fontWeight: 500, cursor: "pointer" }} onClick={() => setActiveTab("ai")}>AI impact details</span>
+                          <span style={{ fontSize: 12, color: colors.accent, fontWeight: 500, cursor: "pointer" }} onClick={() => setActiveTab("industry-ai")}>Industry breakdown</span>
+                        </div>
+                      </div>
                     </div>
                   );
                 })()}
 
-                {/* Metric cards */}
+                {/* Economic context - compact supporting row */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
                   {[
-                    { label: "Unemployment rate", value: latestLaus ? `${parseFloat(latestLaus.unemployment_rate).toFixed(1)}%` : "\u2014",
-                      sub: threeMonthAgo ? `${Math.abs(parseFloat(latestLaus.unemployment_rate) - parseFloat(threeMonthAgo.unemployment_rate)).toFixed(1)} pts from 3mo ago` : "",
-                      good: threeMonthAgo ? parseFloat(latestLaus.unemployment_rate) <= parseFloat(threeMonthAgo.unemployment_rate) : true,
-                      context: nationalAvg ? `National avg: ${nationalAvg}%` : "" },
-                    { label: "Labor force", value: lfNow ? lfNow.toLocaleString() : "\u2014",
-                      sub: lfChange !== 0 ? `${lfChange > 0 ? "+" : ""}${lfChange.toLocaleString()} over ${lausData.length}mo` : "",
-                      good: lfChange >= 0, context: latestLaus ? `${((latestLaus.employed / latestLaus.labor_force) * 100).toFixed(0)}% participation` : "" },
-                    { label: "Score components", value: scoreComponents.filter(c => c.score >= 70).length.toString(),
-                      sub: `of ${scoreComponents.length} above 70`, good: scoreComponents.filter(c => c.score >= 70).length >= 3,
-                      context: scoreComponents.length > 0 ? `Weakest: ${scoreComponents.reduce((a, b) => a.score < b.score ? a : b).label}` : "" },
-                    { label: "Peer standing", value: peerRank ? `#${peerRank.toLocaleString()}` : "\u2014",
-                      sub: `of ${peerTotal.toLocaleString()} counties`, good: peerRank ? peerRank <= peerTotal * 0.5 : true,
-                      context: peerRank ? `Top ${((peerRank / peerTotal) * 100).toFixed(0)}% nationally` : "" },
+                    { label: "Unemployment", value: latestLaus ? `${parseFloat(latestLaus.unemployment_rate).toFixed(1)}%` : "\u2014", sub: nationalAvg ? `vs ${nationalAvg}% national` : "", good: latestLaus && nationalAvg ? parseFloat(latestLaus.unemployment_rate) < nationalAvg : true },
+                    { label: "Labor force", value: lfNow ? lfNow.toLocaleString() : "\u2014", sub: lfChange !== 0 ? `${lfChange > 0 ? "+" : ""}${lfChange.toLocaleString()} over ${lausData.length}mo` : "", good: lfChange >= 0 },
+                    { label: "Resilience score", value: score !== null ? `${Math.round(score)}/100` : "\u2014", sub: `#${peerRank || "\u2014"} of ${peerTotal.toLocaleString()}`, good: score >= 60 },
+                    { label: "High-risk industries", value: criticalIndustries.length.toString(), sub: `of ${industries.length} sectors analyzed`, good: criticalIndustries.length <= 2 },
                   ].map((card, i) => (
-                    <div key={i} style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "20px 22px", display: "flex", flexDirection: "column", gap: 6 }}>
-                      <div style={{ fontSize: 12.5, color: colors.textSecondary }}>{card.label}</div>
-                      <span style={{ fontSize: 30, fontWeight: 600, lineHeight: 1, fontFamily: "'Source Serif 4', Georgia, serif", fontVariantNumeric: "tabular-nums" }}>{card.value}</span>
-                      <div style={{ fontSize: 13, color: card.good ? colors.positive : colors.caution, fontWeight: 500 }}>{card.sub}</div>
-                      <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>{card.context}</div>
+                    <div key={i} style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "18px 20px" }}>
+                      <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 4 }}>{card.label}</div>
+                      <span style={{ fontSize: 26, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", fontVariantNumeric: "tabular-nums", lineHeight: 1 }}>{card.value}</span>
+                      <div style={{ fontSize: 12, color: card.good ? colors.positive : colors.caution, fontWeight: 500, marginTop: 4 }}>{card.sub}</div>
                     </div>
                   ))}
                 </div>
+
+                {/* Old metric cards removed - now in compact economic context row above */}
 
                 {/* Charts */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
