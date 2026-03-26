@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { generateBriefingPDF } from "../lib/generatePDF";
 import { supabase } from "@/lib/supabase";
 
 // ============================================================
@@ -1079,7 +1080,22 @@ export default function ResilienceIQ() {
                     Data: BLS LAUS monthly (through {latestLaus ? `${MONTH_ABBR[latestLaus.month]} ${latestLaus.year}` : "..."}) {"\u00B7"} Census ACS 2023 {"\u00B7"} QCEW Q1 2025
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <div style={{ fontSize: 12.5, color: colors.accent, fontWeight: 500, padding: "5px 12px", borderRadius: 6, background: colors.accentLight }}>View methodology</div>
+                    <button
+                      onClick={() => {
+                        generateBriefingPDF({
+                          jurisdiction,
+                          lausData,
+                          resilienceScore,
+                          aiExposure,
+                          aiReadiness,
+                          nationalAvg,
+                          peers,
+                        });
+                      }}
+                      style={{ fontSize: 12.5, color: "#fff", fontWeight: 500, padding: "6px 16px", borderRadius: 6, background: colors.accent, border: "none", cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6 }}>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 11h10" stroke="#fff" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      Export Briefing PDF
+                    </button>
                     <button
                       onClick={() => {
                         const rows = [["Month", "Unemployment Rate", "Labor Force", "Employed", "Unemployed"]];
