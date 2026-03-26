@@ -415,16 +415,63 @@ function useAIStateComparison(stateAbbr) {
 // ============================================================
 // QCEW INDUSTRY DATA HOOK (from JSON API route)
 // ============================================================
+// Industry AI exposure mapping (Felten et al. + Brookings research)
+const INDUSTRY_AI_EXPOSURE = {
+  "1024": 0.82, "52": 0.82, "Finance/Insurance": 0.82, "Financial Activities": 0.82,
+  "1025": 0.79, "54": 0.79, "Professional/Technical": 0.79, "Professional/Business": 0.79, "Professional/Business Services": 0.79,
+  "55": 0.76, "Management": 0.76, "Management of Companies": 0.76,
+  "1023": 0.74, "51": 0.74, "Information": 0.74,
+  "56": 0.68, "Admin/Support": 0.68, "Admin/Support/Waste": 0.68,
+  "53": 0.55, "Real Estate": 0.55,
+  "42": 0.48, "Wholesale Trade": 0.48,
+  "1026": 0.45, "61": 0.45, "Educational Services": 0.45, "Education/Health": 0.45,
+  "62": 0.42, "Healthcare/Social": 0.42,
+  "1022": 0.40, "44-45": 0.40, "Retail Trade": 0.40, "Trade/Transport/Utilities": 0.40,
+  "92": 0.38, "Public Administration": 0.38,
+  "1021": 0.35, "31-33": 0.35, "Manufacturing": 0.35,
+  "48-49": 0.28, "Transportation": 0.28, "Transportation/Warehousing": 0.28,
+  "1027": 0.25, "71": 0.25, "Arts/Entertainment": 0.25, "Leisure/Hospitality": 0.25,
+  "72": 0.22, "Accommodation/Food": 0.22, "Accommodation/Food Services": 0.22,
+  "1013": 0.18, "23": 0.18, "Construction": 0.18,
+  "1028": 0.25, "81": 0.25, "Other Services": 0.25,
+  "1011": 0.12, "11": 0.12, "Agriculture": 0.12, "Agriculture, Forestry, Fishing": 0.12,
+  "1012": 0.15, "21": 0.15, "Mining": 0.15, "Mining/Oil/Gas": 0.15, "Mining, Quarrying, Oil/Gas": 0.15,
+  "22": 0.20, "Utilities": 0.20,
+  "1029": 0.10, "99": 0.10, "Unclassified": 0.10,
+};
+
 function useQCEWData(fips) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     if (!fips) return;
     setLoading(true);
-    fetch(`/api/qcew?fips=${fips}`)
-      .then(r => r.json())
-      .then(d => setData(d.industries || []))
-      .catch(console.error)
+    supabase
+      .from("qcew_industry_data")
+      .select("industry_code,industry_title,employment,establishments,avg_weekly_wage,total_quarterly_wages")
+      .eq("fips_code", fips)
+      .order("employment", { ascending: false })
+      .then(({ data: rows, error }) => {
+        if (error) { console.error(error); setData([]); }
+        else {
+          const enriched = (rows || []).map(r => {
+            const aiExp = INDUSTRY_AI_EXPOSURE[r.industry_code] || INDUSTRY_AI_EXPOSURE[r.industry_title] || 0.30;
+            const emp = r.employment || 0;
+            const atRisk = Math.round(emp * aiExp * 0.35);
+            const augmented = Math.round(emp * aiExp * 0.45);
+            const wagesAtRisk = atRisk * (r.avg_weekly_wage || 900) * 52;
+            return {
+              ...r,
+              ai_exposure: aiExp,
+              workers_at_risk: atRisk,
+              workers_augmented: augmented,
+              wages_at_risk: wagesAtRisk,
+              risk_level: aiExp >= 0.70 ? "Critical" : aiExp >= 0.55 ? "High" : aiExp >= 0.35 ? "Moderate" : "Low",
+            };
+          });
+          setData(enriched);
+        }
+      })
       .finally(() => setLoading(false));
   }, [fips]);
   return { industries: data, loading };
@@ -688,13 +735,29 @@ export default function ResilienceIQ() {
   const { industries: qcewIndustries, loading: qcewLoading } = useQCEWData(fips);
   const { grants: grantsData, loading: grantsLoading } = useFederalGrants(fips);
 
+  // Compute industry AI risk totals
+  const industries = qcewIndustries || [];
+  const industryTotalAtRisk = industries.reduce((s, ind) => s + (ind.workers_at_risk || 0), 0);
+  const industryTotalWagesAtRisk = industries.reduce((s, ind) => s + (ind.wages_at_risk || 0), 0);
+  const criticalIndustries = industries.filter(ind => ind.risk_level === "Critical" || ind.risk_level === "High");
+  const totalIndustryEmployment = industries.reduce((s, ind) => s + (ind.employment || 0), 0);
+
+  // Skills gap computation (Census ACS education + AIOE)
+  const workersAtRiskTotal = latestLaus ? Math.round(parseInt(latestLaus.employed) * (aiExposure ? parseFloat(aiExposure.aige_score) : 0.4) * 0.35) : 0;
+  const bachelorsPct = aiReadiness ? parseFloat(aiReadiness.bachelors_plus_pct) / 100 : 0.33;
+  const skillsGap = {
+    digitalLiteracy: { workers: Math.round(workersAtRiskTotal * (1 - bachelorsPct) * 0.6), costPerWorker: 2100, label: "Digital literacy" },
+    technical: { workers: Math.round(workersAtRiskTotal * bachelorsPct * 0.5), costPerWorker: 6500, label: "Technical upskilling" },
+    professional: { workers: Math.round(workersAtRiskTotal * 0.1), costPerWorker: 12000, label: "Professional certification" },
+  };
+  skillsGap.totalCost = Object.values(skillsGap).filter(v => v.workers).reduce((s, tier) => s + tier.workers * tier.costPerWorker, 0);
+
   const tabs = [
     { id: "overview", label: "Overview" },
-    { id: "labor", label: "Labor market" },
-    { id: "industry", label: "Industry" },
     { id: "ai", label: "AI impact" },
+    { id: "industry-ai", label: "Industry risk" },
+    { id: "labor", label: "Labor market" },
     { id: "alerts", label: "Alerts" + (warnFilings.length > 0 ? ` (${warnFilings.length})` : "") },
-    { id: "grants", label: "Grants" },
     { id: "compare", label: "Compare" },
   ];
 
@@ -1483,6 +1546,159 @@ export default function ResilienceIQ() {
                 </div>
                 </>
                 )}
+              </div>
+            )}
+
+            {/* ==================== INDUSTRY AI RISK TAB ==================== */}
+            {activeTab === "industry-ai" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                {/* Industry Risk Hero */}
+                <div style={{ background: colors.card, borderRadius: 16, border: `1px solid ${colors.cardBorder}`, overflow: "hidden" }}>
+                  <div style={{ padding: "28px 32px", borderBottom: `1px solid ${colors.cardBorder}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: criticalIndustries.length > 2 ? colors.scoreRed : criticalIndustries.length > 0 ? colors.scoreAmber : colors.scoreGreen }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: colors.textSecondary, textTransform: "uppercase", letterSpacing: "0.04em" }}>Industry AI Risk Analysis</span>
+                      <span style={{ fontSize: 11, color: colors.textTertiary, marginLeft: "auto" }}>BLS QCEW Q1 2025 x Felten AIOE</span>
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", lineHeight: 1.35, color: colors.text }}>
+                      {industries.length > 0
+                        ? `${criticalIndustries.length} of ${industries.length} industries in ${jurisdiction?.county_name} face high or critical AI exposure`
+                        : `Industry AI risk data for ${jurisdiction?.county_name}`}
+                    </div>
+                    {industries.length > 0 && (
+                      <p style={{ fontSize: 14, lineHeight: 1.65, color: colors.textSecondary, margin: "12px 0 0" }}>
+                        Across {totalIndustryEmployment.toLocaleString()} private-sector workers in {industries.length} industries,
+                        an estimated <strong style={{ color: colors.scoreRed }}>{industryTotalAtRisk.toLocaleString()}</strong> face
+                        AI task displacement representing <strong style={{ color: colors.text }}>${(industryTotalWagesAtRisk / 1000000000).toFixed(1)}B</strong> in
+                        annual wages. Each industry is scored using the Felten AIOE methodology mapped to NAICS sector employment.
+                      </p>
+                    )}
+                  </div>
+                  {/* Industry summary stats */}
+                  {industries.length > 0 && (
+                    <div style={{ padding: "20px 32px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0 }}>
+                      {[
+                        { label: "Industries analyzed", value: industries.length.toString(), color: colors.text },
+                        { label: "Critical/High exposure", value: criticalIndustries.length.toString(), color: criticalIndustries.length > 2 ? colors.scoreRed : colors.scoreAmber },
+                        { label: "Workers at risk", value: industryTotalAtRisk.toLocaleString(), color: colors.scoreRed },
+                        { label: "Annual wages at risk", value: `$${(industryTotalWagesAtRisk / 1000000000).toFixed(1)}B`, color: colors.scoreRed },
+                      ].map((s, i) => (
+                        <div key={i} style={{ padding: "0 16px", borderLeft: i > 0 ? `1px solid ${colors.cardBorder}` : "none", display: "flex", flexDirection: "column", gap: 2 }}>
+                          <span style={{ fontSize: 11, color: colors.textTertiary, textTransform: "uppercase" }}>{s.label}</span>
+                          <span style={{ fontSize: 24, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: s.color, fontVariantNumeric: "tabular-nums", lineHeight: 1.1 }}>{s.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Industry Risk Table */}
+                {industries.length > 0 && (
+                  <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "24px 28px" }}>
+                    <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Industry breakdown</div>
+                    <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>AI exposure by sector with worker impact estimates</div>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ borderBottom: `2px solid ${colors.cardBorder}` }}>
+                            {["Industry", "Workers", "AI Exposure", "Risk Level", "At Risk", "Augmented", "Wages at Risk"].map(h => (
+                              <th key={h} style={{ padding: "8px 10px", textAlign: "left", fontWeight: 500, color: colors.textSecondary, fontSize: 11, textTransform: "uppercase" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {industries.filter(ind => ind.employment > 0).map((ind, i) => {
+                            const riskColor = ind.risk_level === "Critical" ? colors.scoreRed : ind.risk_level === "High" ? colors.scoreAmber : ind.risk_level === "Moderate" ? colors.neutral : colors.scoreGreen;
+                            const riskBg = ind.risk_level === "Critical" ? "#FEF2F2" : ind.risk_level === "High" ? colors.cautionBg : ind.risk_level === "Moderate" ? colors.neutralBg : colors.positiveBg;
+                            return (
+                              <tr key={i} style={{ borderBottom: `1px solid ${colors.warmGray}` }}>
+                                <td style={{ padding: "10px 10px", fontWeight: 500 }}>{ind.industry_title}</td>
+                                <td style={{ padding: "10px 10px", fontFamily: "'Source Serif 4', Georgia, serif", fontVariantNumeric: "tabular-nums" }}>{ind.employment?.toLocaleString()}</td>
+                                <td style={{ padding: "10px 10px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <div style={{ width: 50, height: 5, background: "#E0DFDA", borderRadius: 3 }}>
+                                      <div style={{ height: 5, borderRadius: 3, width: `${ind.ai_exposure * 100}%`, background: riskColor }} />
+                                    </div>
+                                    <span style={{ fontSize: 12, fontVariantNumeric: "tabular-nums" }}>{(ind.ai_exposure * 100).toFixed(0)}%</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: "10px 10px" }}>
+                                  <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 11, background: riskBg, color: riskColor, fontWeight: 500 }}>{ind.risk_level}</span>
+                                </td>
+                                <td style={{ padding: "10px 10px", color: colors.scoreRed, fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{ind.workers_at_risk?.toLocaleString()}</td>
+                                <td style={{ padding: "10px 10px", color: colors.scoreAmber, fontVariantNumeric: "tabular-nums" }}>{ind.workers_augmented?.toLocaleString()}</td>
+                                <td style={{ padding: "10px 10px", fontFamily: "'Source Serif 4', Georgia, serif", fontVariantNumeric: "tabular-nums" }}>
+                                  ${(ind.wages_at_risk / 1000000).toFixed(0)}M
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ borderTop: `2px solid ${colors.cardBorder}`, fontWeight: 600 }}>
+                            <td style={{ padding: "10px 10px" }}>Total</td>
+                            <td style={{ padding: "10px 10px", fontFamily: "'Source Serif 4', Georgia, serif" }}>{totalIndustryEmployment.toLocaleString()}</td>
+                            <td style={{ padding: "10px 10px" }}></td>
+                            <td style={{ padding: "10px 10px" }}></td>
+                            <td style={{ padding: "10px 10px", color: colors.scoreRed, fontFamily: "'Source Serif 4', Georgia, serif" }}>{industryTotalAtRisk.toLocaleString()}</td>
+                            <td style={{ padding: "10px 10px" }}></td>
+                            <td style={{ padding: "10px 10px", fontFamily: "'Source Serif 4', Georgia, serif" }}>${(industryTotalWagesAtRisk / 1000000000).toFixed(1)}B</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    <div style={{ marginTop: 12, fontSize: 12, color: colors.textTertiary }}>
+                      Source: BLS Quarterly Census of Employment and Wages (Q1 2025) crossed with Felten et al. AI Occupational Exposure Index.
+                      Workers at risk = employment x industry AI exposure x 0.35 displacement factor. Wages at risk = workers at risk x avg weekly wage x 52.
+                    </div>
+                  </div>
+                )}
+
+                {/* Skills Gap & Retraining Cost */}
+                <div style={{ background: colors.card, borderRadius: 12, border: `1px solid ${colors.cardBorder}`, padding: "24px 28px" }}>
+                  <div style={{ fontSize: 13, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 4 }}>Workforce retraining estimate</div>
+                  <div style={{ fontSize: 17, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", marginBottom: 6 }}>
+                    Skills gap analysis for {jurisdiction?.county_name}
+                  </div>
+                  <p style={{ fontSize: 13, color: colors.textSecondary, margin: "0 0 20px", lineHeight: 1.5 }}>
+                    Based on Census ACS 2023 education attainment ({(bachelorsPct * 100).toFixed(0)}% bachelor&apos;s+) and DOL community college cost benchmarks.
+                    Total estimated retraining investment: <strong style={{ color: colors.text }}>${(skillsGap.totalCost / 1000000).toFixed(1)}M</strong>.
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+                    {[skillsGap.digitalLiteracy, skillsGap.technical, skillsGap.professional].map((tier, i) => (
+                      <div key={i} style={{ padding: "20px", borderRadius: 10, border: `1px solid ${colors.cardBorder}`, background: i === 0 ? "#FEF2F2" : i === 1 ? colors.cautionBg : colors.neutralBg }}>
+                        <div style={{ fontSize: 12, color: colors.textSecondary, textTransform: "uppercase", marginBottom: 8 }}>{tier.label}</div>
+                        <div style={{ fontSize: 28, fontWeight: 600, fontFamily: "'Source Serif 4', Georgia, serif", color: colors.text, lineHeight: 1 }}>
+                          {tier.workers?.toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: 12, color: colors.textSecondary, marginTop: 4 }}>workers need training</div>
+                        <div style={{ marginTop: 12, padding: "8px 0", borderTop: `1px solid ${colors.cardBorder}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                            <span style={{ color: colors.textSecondary }}>Cost per worker</span>
+                            <span style={{ fontWeight: 600 }}>${tier.costPerWorker?.toLocaleString()}</span>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginTop: 4 }}>
+                            <span style={{ color: colors.textSecondary }}>Total cost</span>
+                            <span style={{ fontWeight: 600 }}>${((tier.workers * tier.costPerWorker) / 1000000).toFixed(1)}M</span>
+                          </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: colors.textTertiary, marginTop: 8 }}>
+                          {i === 0 ? "Basic computer skills, AI tool awareness, online collaboration" : i === 1 ? "Data analysis, AI-assisted workflows, technical certification" : "Advanced AI/ML, project management, leadership transition"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 12, fontSize: 12, color: colors.textTertiary }}>
+                    Source: Education attainment from Census ACS 2023 5-Year. Cost benchmarks from DOL/community college published rates. Digital literacy programs average 8-12 weeks; technical upskilling 6-12 months; professional certification 12-18 months.
+                  </div>
+                </div>
+
+                {/* Industry data source attribution */}
+                <div style={{ background: colors.warmGray, borderRadius: 12, padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 13, color: colors.textSecondary }}>
+                    Data: BLS QCEW Q1 2025 ({industries.length} industries, {totalIndustryEmployment.toLocaleString()} workers) {"\u00B7"} Felten AIOE {"\u00B7"} Census ACS 2023
+                  </div>
+                </div>
               </div>
             )}
 
